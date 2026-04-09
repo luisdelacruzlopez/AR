@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "EstadioApp",
   "resources": {
-    "hash": "sha256-rvE8jfk4igM6k9YJRlvqPCK4OtbmpgnR5FJhewlEEmU=",
+    "hash": "sha256-hEDqpZ2vJtKDKozbAq5Mrsah2TiADna1y3x5TrYsTOY=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-A16ka545FHaB+QXjyJ4exXh7XpBAAIFnX8YkC4xAng8="
     },
@@ -35,11 +35,11 @@
       "Google.Cloud.Firestore.V1.wasm": "sha256-nokunbZtPec45P820CXd/XYPfaHBc3mJJqBcXSOz8LY=",
       "Google.Cloud.Location.wasm": "sha256-L+hf7FsRahQ5hPmUBhPwm8CtPuehj91X6eLqfWy1CDc=",
       "Google.LongRunning.wasm": "sha256-Od6gUOT3eTGqWWjRfcBgQnBpEb2abgbfEGf5xHDRdds=",
-      "Google.Protobuf.wasm": "sha256-yZYHt1kUFXs+OFWEYXL1Yg3eIVQA4WvrAbthfzeon5U=",
-      "Grpc.Auth.wasm": "sha256-THVdl3DsE9MxTyd2ceeN3z8uoiBz/fC7u1f7L9byJio=",
-      "Grpc.Core.Api.wasm": "sha256-poIndOPDz/dA3qdDfaliqTFbLDbCX5OCnOp/Ib/ISNM=",
-      "Grpc.Net.Client.wasm": "sha256-8lyN0aY8hon0R/fxOAVwNKV4kVuTlGaTyEqcPW48wmg=",
-      "Grpc.Net.Common.wasm": "sha256-pACF8L3srmNpdyLf2yY6cMPcY6T4IXki8lUlIU2sVh4=",
+      "Google.Protobuf.wasm": "sha256-cpMEHSKblJa0ZtiLvQ/WCPUHZwNydYpNbg0qxlE7aeQ=",
+      "Grpc.Auth.wasm": "sha256-fG64N4G4esz7t3x03Qjr8xpt01IBvaac5kwX6o359f0=",
+      "Grpc.Core.Api.wasm": "sha256-cqfR1kq9oNzN3Vv9o3vhMXvQjjnqLAalOTp0gjDwSkE=",
+      "Grpc.Net.Client.wasm": "sha256-YmtoeX/S+2fkbbFecBXXR8/XgryzcoG6+Dn0Bs9sGY8=",
+      "Grpc.Net.Common.wasm": "sha256-sx/QECOsrSn5v+524wiEhKxHI0IjQTtFlhj8S4zs9wI=",
       "Microsoft.AspNetCore.Authorization.wasm": "sha256-Y1GWxqfaKwSOFu3J5fljL2INiqvr/Gh9s5m+65Tjzzw=",
       "Microsoft.AspNetCore.Components.wasm": "sha256-h/0hoFhWhG0AXUuPaFE/b2wyiJbF1tu9tvA7WgtMWmM=",
       "Microsoft.AspNetCore.Components.Authorization.wasm": "sha256-ud6n/tvWjnuczK+zJPve5LOBIzJNZ7GMX+e4xDEfHt0=",
@@ -131,7 +131,7 @@
       "System.wasm": "sha256-25KTxVbx+rD8S9iyUye7jmbj1e4TZ5Ca+elup4oegJA=",
       "netstandard.wasm": "sha256-LMlS/ppD+QOKfGA0T8RM5y8Rlc5T5xMlQXKdVqqKZVw=",
       "System.Private.CoreLib.wasm": "sha256-yeV2Kq6CYfQ7L3EJFvO0IJ/lYAC6YVqLwbQ70lY6JMk=",
-      "EstadioApp.wasm": "sha256-6o9EkwUOLJKIn26Ioo4WI8MdssXsGho0YdF1YH2LETk="
+      "EstadioApp.wasm": "sha256-9bloZt+YoCyZSy6zMBpZarorRJOO2iQB8PX4uaVNixI="
     }
   },
   "cacheBootResources": true,
