@@ -1,0 +1,17 @@
+{
+  "name": "estadioapp-apphosting",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Runtime wrapper for Firebase App Hosting deployment of EstadioApp",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prepare:dist": "dotnet publish EstadioApp.csproj -c Release -o apphosting_dist",
+    "build": "node scripts/verify-dist.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

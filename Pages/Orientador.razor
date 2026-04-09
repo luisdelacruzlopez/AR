@@ -1,0 +1,64 @@
+@page "/orientador"
+@inject FirestoreService Firestore
+@using EstadioApp.Models
+
+<RolesRedirect RoleRequired="orientador">
+
+    <MudText Typo="Typo.h5">Mapa de ocupación</MudText>
+
+    <MudPaper Class="mt-4 pa-4">
+        @if (Zones is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <svg width="100%" height="450px">
+                @foreach (var z in Zones)
+                {
+                    <ellipse cx="@z.Cx"
+                             cy="@z.Cy"
+                             rx="@z.Rx"
+                             ry="@z.Ry"
+                             transform="rotate(@z.Rotation @z.Cx @z.Cy)"
+                             fill="@GetFill(z)"
+                             stroke="black"
+                             stroke-width="2" />
+
+                    <svg:text x="@z.Cx"
+                              y="@z.Cy"
+                              text-anchor="middle"
+                              dy="5"
+                              font-size="16"
+                              fill="black">
+                        @z.Name (@z.FreeSeats)
+                    </svg:text>
+                }
+            </svg>
+        }
+    </MudPaper>
+
+</RolesRedirect>
+
+@code {
+    List<ZoneModel>? Zones;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = Task.Run(async () =>
+        {
+            await foreach (var zonas in Firestore.ListenZones(1000))
+            {
+                Zones = zonas;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+    }
+
+    string GetFill(ZoneModel z)
+    {
+        if (z.FreeSeats > z.TotalSeats * 0.5) return "lightgreen";
+        if (z.FreeSeats > z.TotalSeats * 0.2) return "orange";
+        return "red";
+    }
+}

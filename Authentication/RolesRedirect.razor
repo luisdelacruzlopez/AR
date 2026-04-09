@@ -1,0 +1,37 @@
+@inject UserSessionService Session
+@inject NavigationManager Nav
+
+@if (_canRenderContent)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public string RoleRequired { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    bool _canRenderContent;
+
+    protected override void OnParametersSet()
+    {
+        _canRenderContent = false;
+
+        if (Session.CurrentUser is null)
+        {
+            Nav.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        var currentRole = Session.CurrentUser.Role?.Trim().ToLowerInvariant();
+        var requiredRole = RoleRequired?.Trim().ToLowerInvariant();
+
+        if (!string.IsNullOrWhiteSpace(requiredRole) &&
+            currentRole != requiredRole)
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+
+        _canRenderContent = true;
+    }
+}

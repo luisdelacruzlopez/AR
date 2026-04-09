@@ -1,0 +1,134 @@
+/* =========================================================
+   EDITOR GENERAL
+   ========================================================= */
+
+.editor-container {
+    position: relative;
+    user-select: none;
+    touch-action: none;
+}
+
+/* =========================================================
+   TOOLTIP DE ZONA
+   ========================================================= */
+
+.zone-tooltip {
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    z-index: 20;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.zone-tooltip-title {
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+/* =========================================================
+   ZONA BASE
+   ========================================================= */
+
+.zone-base {
+    fill: #ffffff;
+    stroke: #555;
+    stroke-width: 2px;
+    transition: stroke 0.2s ease-in-out;
+}
+
+.zone-base.selected {
+    stroke: #1976d2;
+    stroke-width: 3px;
+}
+
+
+.zona-bloque-grande {
+    fill: #e8f5e9;
+}
+
+.zona-checkin-dot {
+    fill: #2e7d32;
+    stroke: #ffffff;
+    stroke-width: 2px;
+    pointer-events: none;
+    filter: drop-shadow(0 0 3px rgba(46, 125, 50, 0.55));
+}
+
+
+/* =========================================================
+   ILUMINACIÓN POR INCIDENCIA
+   ========================================================= */
+
+.zona-incidencia {
+    animation: parpadeo-borde 1.2s infinite ease-in-out;
+    stroke-width: 6px !important;
+}
+
+@keyframes parpadeo-borde {
+    0% {
+        opacity: 1;
+        filter: drop-shadow(0 0 2px rgba(255,0,0,0.5));
+    }
+    50% {
+        opacity: 0.5;
+        filter: drop-shadow(0 0 8px rgba(255,0,0,0.9));
+    }
+    100% {
+        opacity: 1;
+        filter: drop-shadow(0 0 2px rgba(255,0,0,0.5));
+    }
+}
+
+/* =========================================================
+   HANDLES DE EDICIÓN
+   ========================================================= */
+
+.handle {
+    fill: white;
+    stroke: #444;
+    stroke-width: 2;
+    cursor: nwse-resize;
+}
+
+.rotate-handle {
+    fill: #ff9800;
+    cursor: grab;
+}
+
+.rotate-line {
+    stroke: #444;
+    stroke-width: 2;
+}
+
+/* =========================================================
+   TEXTO SVG (CORREGIDO)
+   ========================================================= */
+
+text {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: bold;
+    fill: #111111;              /* ✅ visible sobre fondo blanco */
+    pointer-events: none;
+    dominant-baseline: middle;
+    text-anchor: middle;
+    text-rendering: geometricPrecision;
+}
+
+.zone-label-text {
+    fill: #111111;
+    pointer-events: none;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+    .editor-container svg {
+        height: 70vh;
+    }
+}

@@ -1,0 +1,165 @@
+@page "/admin/mensaje"
+@inject FirestoreService Firestore
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@using EstadioApp.Models
+
+<MudPaper Class="pa-4" MaxWidth="MaxWidth.Medium">
+
+    <MudText Typo="Typo.h5">Enviar mensaje a acomodadores</MudText>
+
+    <MudTextField Label="Mensaje"
+                  Lines="4"
+                  FullWidth="true"
+                  @bind-Value="Texto" />
+
+    <MudSelect T="string"
+               Label="Tipo"
+               @bind-Value="Tipo">
+        <MudSelectItem Value="@("general")">General</MudSelectItem>
+        <MudSelectItem Value="@("incidencia")">Incidencia</MudSelectItem>
+        <MudSelectItem Value="@("zona")">Zona</MudSelectItem>
+    </MudSelect>
+
+    <MudStack Row="true" Spacing="2" Class="mt-4">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(Texto)"
+                   OnClick="Enviar">
+            Enviar
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined"
+                   OnClick="Volver">
+            Volver
+        </MudButton>
+    </MudStack>
+
+    <MudDivider Class="my-4" />
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+        <MudText Typo="Typo.h6">Mensajes enviados</MudText>
+
+        <MudSelect T="string"
+                   Dense="true"
+                   Variant="Variant.Outlined"
+                   Label="Filtrar"
+                   Style="min-width: 180px;"
+                   @bind-Value="TipoFiltro">
+            <MudSelectItem Value="@("todos")">Todos</MudSelectItem>
+            <MudSelectItem Value="@("general")">General</MudSelectItem>
+            <MudSelectItem Value="@("incidencia")">Incidencia</MudSelectItem>
+            <MudSelectItem Value="@("zona")">Zona</MudSelectItem>
+        </MudSelect>
+    </MudStack>
+
+    @if (CargandoMensajes)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+    }
+    else if (!MensajesFiltrados.Any())
+    {
+        <MudText Color="Color.Secondary">No hay mensajes para el filtro seleccionado.</MudText>
+    }
+    else
+    {
+        <MudList T="string" Dense="true">
+            @foreach (var m in MensajesFiltrados)
+            {
+                <MudListItem T="string">
+                    <MudStack Spacing="0">
+                        <MudText Typo="Typo.body2">@m.Texto</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Primary">Tipo: @m.Tipo</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @FormatoFechaHora(m.CreatedAt)
+                        </MudText>
+                    </MudStack>
+                </MudListItem>
+            }
+        </MudList>
+    }
+
+</MudPaper>
+
+@code {
+    string Texto = "";
+    string Tipo = "general";
+    string TipoFiltro = "todos";
+    bool CargandoMensajes = true;
+    List<MensajeModel> MensajesEnviados = new();
+
+    IEnumerable<MensajeModel> MensajesFiltrados =>
+        TipoFiltro == "todos"
+            ? MensajesEnviados
+            : MensajesEnviados.Where(m =>
+                string.Equals(m.Tipo, TipoFiltro, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarMensajesAsync();
+    }
+
+    async Task Enviar()
+    {
+        try
+        {
+            await Firestore.CrearMensajeAsync(
+                texto: Texto,
+                tipo: Tipo
+            );
+
+            Snackbar.Add("Mensaje enviado", Severity.Success);
+            Texto = "";
+            await CargarMensajesAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // ❗ Muestra el error REAL devuelto por Firestore REST
+            Console.WriteLine(ex.Message);
+            Snackbar.Add("Error Firestore: " + ex.Message, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add("Error inesperado: " + ex.Message, Severity.Error);
+        }
+    }
+
+    async Task CargarMensajesAsync()
+    {
+        CargandoMensajes = true;
+        try
+        {
+            MensajesEnviados = (await Firestore.GetMensajesAsync())
+                .OrderByDescending(m => ParseCreatedAtUtc(m.CreatedAt))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add("No se pudo cargar el historial de mensajes.", Severity.Warning);
+        }
+        finally
+        {
+            CargandoMensajes = false;
+        }
+    }
+
+    static DateTime ParseCreatedAtUtc(string? value)
+    {
+        if (DateTime.TryParse(value, out var dt))
+            return dt;
+
+        return DateTime.MinValue;
+    }
+
+    static string FormatoFechaHora(string? value)
+    {
+        if (!DateTime.TryParse(value, out var dt))
+            return "Fecha no disponible";
+
+        return dt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
+    }
+
+    void Volver() => Nav.NavigateTo("/admin");
+}

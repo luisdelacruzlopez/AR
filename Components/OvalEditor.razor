@@ -1,0 +1,529 @@
+@using EstadioApp.Models
+@inject ISnackbar Snackbar
+@inject FirestoreService Firestore
+
+<div class="editor-container"
+     @onwheel="OnWheel"
+     @onmousemove="OnMouseMove"
+     @onmouseup="OnMouseUp"
+     @onmouseleave="OnMouseUp"
+     @ontouchstart="OnTouchStart"
+     @ontouchmove="OnTouchMove"
+     @ontouchend="OnTouchEnd">
+
+    @if (ReadOnly)
+    {
+        <!-- ===== VISOR (Panel de control) ===== -->
+        <svg @ref="SvgRef"
+             xmlns="http://www.w3.org/2000/svg"
+             width="100%"
+             height="100%"
+             viewBox="250 -50 500 500"
+             preserveAspectRatio="xMidYMid meet"
+             style="border:1px solid #ddd; height:@CanvasHeight; cursor:@Cursor">
+
+            <g transform="translate(@PanX,@PanY) scale(@Zoom)">
+
+                @foreach (var z in Zones)
+                {
+                    var incidencia = GetIncidenciaParaZona(z.Id);
+                    var bordeClase = incidencia != null ? "zona-incidencia" : "";
+
+                    <g class="zone-group"
+                       @onmouseover="e => ShowTooltip(z, e)"
+                       @onmousemove="e => UpdateTooltipPosition(e)"
+                       @onmouseout="HideTooltip">
+
+                        <rect x="@(z.Cx - GetHalfWidth(z))"
+                              y="@(z.Cy - GetHalfHeight(z))"
+                              width="@(GetHalfWidth(z) * 2)"
+                              height="@(GetHalfHeight(z) * 2)"
+                              transform="rotate(@z.Rotation @z.Cx @z.Cy)"
+                              class="@($"zone-base {(z.MaxFreeBlock >= 6 ? "zona-bloque-grande" : "")} {bordeClase}")"
+                            style="@GetZoneStyle(z, incidencia)" />
+
+                        @if (z.HasCheckedIn)
+                        {
+                            <circle cx="@(z.Cx + GetHalfWidth(z) - 8)"
+                                    cy="@(z.Cy - GetHalfHeight(z) + 8)"
+                                    r="6"
+                                    class="zona-checkin-dot" />
+                        }
+
+                        <text x="@z.Cx"
+                              y="@z.Cy"
+                              text-anchor="middle"
+                              dominant-baseline="middle"
+                              font-size="@GetFontSize(z)"
+                              fill="@GetTextColor(z)"
+                              pointer-events="none">
+
+                            <tspan x="@z.Cx" dy="-0.6em">@z.Id</tspan>
+                            <tspan x="@z.Cx" dy="1.2em">@GetOccupancyPercent(z)%</tspan>
+
+                        </text>
+                    </g>
+                }
+
+            </g>
+        </svg>
+    }
+    else
+    {
+        <!-- ===== EDITOR ===== -->
+        <svg @ref="SvgRef"
+             xmlns="http://www.w3.org/2000/svg"
+             width="100%"
+             height="100%"
+             style="border:1px solid #ddd; height:@CanvasHeight; cursor:@Cursor">
+
+            <g transform="translate(@PanX,@PanY) scale(@Zoom)">
+
+                @foreach (var z in Zones)
+                {
+                    var incidencia = GetIncidenciaParaZona(z.Id);
+                    var bordeClase = incidencia != null ? "zona-incidencia" : "";
+
+                    <g class="zone-group"
+                       @onmousedown="e => SelectZone(z, e)"
+                       @onmouseover="e => ShowTooltip(z, e)"
+                       @onmousemove="e => UpdateTooltipPosition(e)"
+                       @onmouseout="HideTooltip">
+
+                        <rect x="@(z.Cx - GetHalfWidth(z))"
+                              y="@(z.Cy - GetHalfHeight(z))"
+                              width="@(GetHalfWidth(z) * 2)"
+                              height="@(GetHalfHeight(z) * 2)"
+                              transform="rotate(@z.Rotation @z.Cx @z.Cy)"
+                              class="@($"zone-base {(SelectedZone == z ? "selected" : "")} {bordeClase}")"
+                              style="@GetIncidenciaBordeStyle(incidencia)" />
+
+                        @if (z.HasCheckedIn)
+                        {
+                            <circle cx="@(z.Cx + GetHalfWidth(z) - 8)"
+                                    cy="@(z.Cy - GetHalfHeight(z) + 8)"
+                                    r="6"
+                                    class="zona-checkin-dot" />
+                        }
+
+                        <text x="@z.Cx"
+                              y="@z.Cy"
+                              text-anchor="middle"
+                              dominant-baseline="middle"
+                              font-size="@GetFontSize(z)"
+                              fill="@GetTextColor(z)"
+                              pointer-events="none">
+
+                            <tspan x="@z.Cx" dy="-0.6em">@z.Id</tspan>
+                            <tspan x="@z.Cx" dy="1.2em">@GetOccupancyPercent(z)%</tspan>
+
+                        </text>
+
+                        @if (SelectedZone == z)
+                        {
+                            @foreach (var h in Handles)
+                            {
+                                <circle cx="@h.X(z)"
+                                        cy="@h.Y(z)"
+                                        r="8"
+                                        class="handle"
+                                        @onmousedown="e => StartResize(h.Type, e)" />
+                            }
+
+                            <circle cx="@RotationX"
+                                    cy="@RotationY"
+                                    r="10"
+                                    class="rotate-handle"
+                                    @onmousedown="StartRotate" />
+
+                            <line x1="@z.Cx"
+                                  y1="@(z.Cy - z.Ry)"
+                                  x2="@RotationX"
+                                  y2="@RotationY"
+                                  class="rotate-line" />
+                        }
+                    </g>
+                }
+
+            </g>
+        </svg>
+    }
+
+    <!-- ===== TOOLTIP ===== -->
+    @if (TooltipVisible && HoveredZone != null)
+    {
+        <div class="zone-tooltip"
+             style="left:@($"{TooltipX}px"); top:@($"{TooltipY}px")">
+            <div class="zone-tooltip-title">
+                Zona @HoveredZone.Id
+            </div>
+            <div>Ocupación: @GetOccupancyPercent(HoveredZone)%</div>
+            <div>Máx juntos: @HoveredZone.MaxFreeBlock</div>
+            <div>Acomodador: @GetAccommodatorLabel(HoveredZone)</div>          
+            <div>En puesto: @(HoveredZone.HasCheckedIn ? "Sí" : "No")</div>
+
+            @if (GetIncidenciaParaZona(HoveredZone.Id) != null)
+            {
+                <div style="color:red;font-weight:bold">
+                    Incidencia activa
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+
+@code {
+
+    [Parameter] public List<ZoneModel> Zones { get; set; } = new();
+    [Parameter] public List<IncidenciaModel>? IncidenciasActivas { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool ShowToolbar { get; set; } = true;
+    [Parameter] public string CanvasHeight { get; set; } = "700px";
+    [Parameter] public List<UserModel> Users { get; set; } = new();
+    [Parameter] public bool ShowOccupancyHeatmap { get; set; } = false;
+
+    ElementReference SvgRef;
+    ZoneModel? SelectedZone;
+
+    double Zoom = 1.0;
+    double PanX = 0;
+    double PanY = 0;
+    string Cursor = "default";
+
+    bool Dragging = false;
+    bool Resizing = false;
+    bool Rotating = false;
+    bool IsPanning = false;
+
+    bool TooltipVisible = false;
+    double TooltipX, TooltipY;
+    ZoneModel? HoveredZone;
+
+    double StartMouseX, StartMouseY;
+    double StartCx, StartCy;
+    double StartRx, StartRy;
+    string ResizeType = "";
+
+    double RotationX => SelectedZone?.Cx ?? 0;
+    double RotationY => SelectedZone == null ? 0 : SelectedZone.Cy - GetHalfHeight(SelectedZone) - 40;
+
+    Dictionary<string, DateTime> IncidenciaVistaDesde = new();
+
+    [Parameter] public EventCallback<ZoneModel?> OnZoneSelected { get; set; }
+
+
+    // ======================================================
+    //    INCIDENCIAS Y ILUMINACIÓN (B1)
+    // ======================================================
+
+
+IncidenciaModel? GetIncidenciaParaZona(string zonaId)
+{
+    if (IncidenciasActivas == null || IncidenciasActivas.Count == 0)
+        return null;
+
+    // 1️⃣ Buscar incidencias NO resueltas en la zona
+    var activa = IncidenciasActivas
+        .Where(i =>
+            i.ZonaId == zonaId &&
+            i.Estado != IncidenciaEstado.Resuelta
+        )
+        .OrderByDescending(i => i.Timestamp)
+        .FirstOrDefault();
+
+    // ✅ Si existe alguna activa → iluminar
+    if (activa != null)
+        return activa;
+
+    // 2️⃣ Todas están resueltas → comprobar la más reciente
+    var ultimaResuelta = IncidenciasActivas
+        .Where(i =>
+            i.ZonaId == zonaId &&
+            i.Estado == IncidenciaEstado.Resuelta &&
+            !string.IsNullOrWhiteSpace(i.HoraResolucion)
+        )
+        .OrderByDescending(i => i.HoraResolucion)
+        .FirstOrDefault();
+
+    if (ultimaResuelta == null)
+        return null;
+
+    if (!DateTime.TryParse(ultimaResuelta.HoraResolucion, out var horaResolucion))
+        return null;
+
+    var segundosDesdeResolucion =
+        (DateTime.UtcNow - horaResolucion.ToUniversalTime()).TotalSeconds;
+
+    // ✅ Mantener resaltado 30 s tras resolver la última
+    if (segundosDesdeResolucion < 30)
+        return ultimaResuelta;
+
+    // ❌ Pasados 30 s → zona normal
+    return null;
+}
+
+
+    string GetIncidenciaBordeStyle(IncidenciaModel? inc)
+    {
+        if (inc == null)
+            return "";
+
+        string color = inc.Estado switch 
+        {
+            IncidenciaEstado.Pendiente   => "#ff4444",
+            IncidenciaEstado.Confirmada  => "#ffbb33",
+            IncidenciaEstado.EnProceso   => "#33b5e5",
+            IncidenciaEstado.Resuelta    => "#00C851",
+            _ => "#000"
+        };
+
+        return $"stroke:{color}; stroke-width:5px;";
+    }
+
+    // ======================================================
+    //   ZOOM + PAN + DRAG + RESIZE + ROTATE
+    //   (Tu implementación original - intacta)
+    // ======================================================
+
+void SelectZone(ZoneModel zone, MouseEventArgs e)
+{
+    if (ReadOnly) return;
+
+    SelectedZone = zone;
+
+    // ✅ Notificar al padre
+    OnZoneSelected.InvokeAsync(zone);
+
+    Dragging = true;
+    StartMouseX = e.ClientX;
+    StartMouseY = e.ClientY;
+    StartCx = zone.Cx;
+    StartCy = zone.Cy;
+    Cursor = "move";
+}
+
+    void OnMouseMove(MouseEventArgs e)
+    {
+        if (IsPanning)
+        {
+            PanX = e.ClientX - StartMouseX;
+            PanY = e.ClientY - StartMouseY;
+            return;
+        }
+
+        if (SelectedZone == null)
+            return;
+
+        double dx = (e.ClientX - StartMouseX) / Zoom;
+        double dy = (e.ClientY - StartMouseY) / Zoom;
+
+        if (Resizing)
+        {
+            if (ResizeType == "left" || ResizeType == "right")
+                SelectedZone.Rx = Math.Max(18, StartRx + (Math.Abs(dx) * 0.5));
+
+            if (ResizeType == "top" || ResizeType == "bottom")
+                SelectedZone.Ry = Math.Max(14, StartRy + (Math.Abs(dy) * 0.5));
+
+            return;
+        }
+
+        if (Rotating)
+        {
+            var angle = Math.Atan2(e.ClientY - SelectedZone.Cy, e.ClientX - SelectedZone.Cx);
+            SelectedZone.Rotation = Math.Round((angle * 180.0 / Math.PI) + 90, 1);
+            return;
+        }
+
+        if (!Dragging)
+            return;
+
+        SelectedZone.Cx = StartCx + dx;
+        SelectedZone.Cy = StartCy + dy;
+    }
+
+    void OnMouseUp(MouseEventArgs e)
+    {
+        Dragging = false;
+        Resizing = false;
+        Rotating = false;
+        IsPanning = false;
+
+        Cursor = "default";
+    }
+
+    void StartResize(string type, MouseEventArgs e)
+    {
+        ResizeType = type;
+        Resizing = true;
+
+        StartMouseX = e.ClientX;
+        StartMouseY = e.ClientY;
+
+        if (SelectedZone != null)
+        {
+            StartRx = SelectedZone.Rx;
+            StartRy = SelectedZone.Ry;
+        }
+    }
+
+    void StartRotate(MouseEventArgs e)
+    {
+        Rotating = true;
+    }
+
+    void OnWheel(WheelEventArgs e)
+    {
+        double zDelta = e.DeltaY < 0 ? 0.1 : -0.1;
+        double old = Zoom;
+        Zoom = Math.Clamp(Zoom + zDelta, 0.4, 3.5);
+
+        PanX = e.OffsetX - (e.OffsetX - PanX) * (Zoom / old);
+        PanY = e.OffsetY - (e.OffsetY - PanY) * (Zoom / old);
+    }
+
+    // ======================================================
+    // Tooltip
+    // ======================================================
+
+    void ShowTooltip(ZoneModel z, MouseEventArgs e)
+    {
+        HoveredZone = z;
+        TooltipVisible = true;
+        UpdateTooltipPosition(e);
+    }
+
+    void UpdateTooltipPosition(MouseEventArgs e)
+    {
+        TooltipX = e.OffsetX + 16;
+        TooltipY = e.OffsetY + 16;
+    }
+
+    void HideTooltip()
+    {
+        TooltipVisible = false;
+        HoveredZone = null;
+    }
+
+    // ======================================================
+    // Helpers
+    // ======================================================
+
+    double GetHalfWidth(ZoneModel z) => Math.Max(20, Math.Min(z.Rx, z.Ry / 1.2));
+    double GetHalfHeight(ZoneModel z) => Math.Max(35, Math.Max(z.Ry, z.Rx * 1.2));
+
+    int GetOccupancyPercent(ZoneModel z)
+    {
+        if (z.TotalSeats <= 0)
+            return 0;
+        return (int)(((z.TotalSeats - z.FreeSeats) * 100.0) / z.TotalSeats);
+    }
+
+    string GetTextColor(ZoneModel z)
+    {
+        int p = GetOccupancyPercent(z);
+
+        if (ShowOccupancyHeatmap && ReadOnly)
+            return p >= 62 ? "white" : "#111";
+
+        return p > 70 ? "white" : "black";
+    }
+
+    string GetZoneStyle(ZoneModel z, IncidenciaModel? inc)
+    {
+        var style = GetIncidenciaBordeStyle(inc);
+
+        if (!ReadOnly || !ShowOccupancyHeatmap)
+            return style;
+
+        return $"fill:{GetOccupancyFillColor(z)};{style}";
+    }
+
+    string GetOccupancyFillColor(ZoneModel z)
+    {
+        var p = Math.Clamp(GetOccupancyPercent(z), 0, 100);
+        // Hue 120 (verde) -> 0 (rojo) según ocupación.
+        var hue = 120 - (p * 1.2);
+        return $"hsl({hue:0}, 78%, 46%)";
+    }
+
+    
+string GetAccommodatorLabel(ZoneModel z)
+{
+    var user = Users.FirstOrDefault(u => u.AssignedZone == z.Id);
+    return user?.Nombre ?? "Sin asignar";
+}
+
+
+double GetFontSize(ZoneModel z)
+{
+    double size = Math.Min(GetHalfWidth(z), GetHalfHeight(z)) * 0.45;
+    if (size < 10) size = 10;
+    if (size > 26) size = 26;
+    return size;
+}
+
+record HandleDef(string Type, Func<ZoneModel, double> X, Func<ZoneModel, double> Y);
+
+List<HandleDef> Handles => new()
+{
+    new("left",   z => z.Cx - GetHalfWidth(z), z => z.Cy),
+    new("right",  z => z.Cx + GetHalfWidth(z), z => z.Cy),
+    new("top",    z => z.Cx,                   z => z.Cy - GetHalfHeight(z)),
+    new("bottom", z => z.Cx,                   z => z.Cy + GetHalfHeight(z))
+};
+
+bool TouchPanning = false;
+double TouchStartX, TouchStartY;
+
+bool TouchZooming = false;
+double TouchDistanceStart = 0;
+double StartZoom = 1.0;
+
+void OnTouchStart(TouchEventArgs e)
+{
+    if (e.Touches.Length == 1)
+    {
+        TouchPanning = true;
+        TouchStartX = e.Touches[0].ClientX - PanX;
+        TouchStartY = e.Touches[0].ClientY - PanY;
+    }
+    else if (e.Touches.Length == 2)
+    {
+        TouchZooming = true;
+        var dx = e.Touches[0].ClientX - e.Touches[1].ClientX;
+        var dy = e.Touches[0].ClientY - e.Touches[1].ClientY;
+        TouchDistanceStart = Math.Sqrt(dx * dx + dy * dy);
+        StartZoom = Zoom;
+    }
+}
+
+void OnTouchMove(TouchEventArgs e)
+{
+    if (TouchZooming && e.Touches.Length == 2)
+    {
+        var dx = e.Touches[0].ClientX - e.Touches[1].ClientX;
+        var dy = e.Touches[0].ClientY - e.Touches[1].ClientY;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+
+        Zoom = Math.Clamp(StartZoom * (dist / TouchDistanceStart), 0.4, 3.5);
+        return;
+    }
+
+    if (TouchPanning && e.Touches.Length == 1)
+    {
+        PanX = e.Touches[0].ClientX - TouchStartX;
+        PanY = e.Touches[0].ClientY - TouchStartY;
+    }
+}
+
+void OnTouchEnd(TouchEventArgs e)
+{
+    TouchPanning = false;
+    TouchZooming = false;
+}
+
+
+}

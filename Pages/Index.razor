@@ -1,0 +1,24 @@
+@page "/"
+@inject UserSessionService Session
+@inject NavigationManager Nav
+
+<MudPaper Class="pa-4 mt-4">
+    <MudText Typo="Typo.subtitle1">Redirigiendo...</MudText>
+</MudPaper>
+
+@code {
+    protected override void OnInitialized()
+    {
+        var role = Session.CurrentUser?.Role?.Trim().ToLowerInvariant();
+
+        var target = role switch
+        {
+            "admin" => "/admin",
+            "acomodador" => "/acomodador",
+            "orientador" => "/orientador",
+            _ => "/login"
+        };
+
+        Nav.NavigateTo(target, replace: true);
+    }
+}

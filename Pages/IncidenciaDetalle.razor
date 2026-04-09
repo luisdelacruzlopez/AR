@@ -1,0 +1,219 @@
+@page "/incidencia/{Id}"
+
+@using EstadioApp.Models
+@using MudBlazor
+@using System.Globalization
+@inject FirestoreService Firestore
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6">
+
+    <MudPaper Class="pa-4">
+
+        <MudStack Spacing="3">
+
+            <!-- HEADER -->
+            <MudStack Row="true" AlignItems=AlignItems.Center Spacing="2">
+                <MudText Typo="Typo.h5">Detalle de incidencia</MudText>
+
+                @if (Incidencia != null)
+                {
+                    <MudChip T="string"
+                            Color="@GetEstadoColor()"
+                            Variant="Variant.Filled">
+                        @GetEstadoTexto(Incidencia.Estado)
+                    </MudChip>
+
+                }
+            </MudStack>
+
+            <MudDivider />
+
+            @if (Incidencia == null)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else
+            {
+                <!-- DATOS -->
+                <MudGrid>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Tipo</b></MudText>
+                        <MudText>@Incidencia.Tipo</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Zona</b></MudText>
+                        <MudText>@Incidencia.ZonaId</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Fecha</b></MudText>
+                        <MudText>@FormatDateTime(Incidencia.Timestamp)</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Acomodador</b></MudText>
+                        <MudText>@AcomodadorNombre</MudText>
+                    </MudItem>
+
+                    @if (!string.IsNullOrWhiteSpace(Incidencia.HoraResolucion))
+                    {
+                        <MudItem xs="12">
+                            <MudText><b>Hora de resolución</b></MudText>
+                            <MudText>@FormatDateTime(Incidencia.HoraResolucion)</MudText>
+                        </MudItem>
+                    }
+
+                </MudGrid>
+
+                <MudDivider Class="my-3" />
+
+                <!-- ESTADO -->
+                <MudSelect T="IncidenciaEstado"
+                           Label="Estado"
+                           @bind-Value="EstadoEditado">
+
+                    <MudSelectItem Value="@IncidenciaEstado.Pendiente">
+                        Pendiente
+                    </MudSelectItem>
+
+                    <MudSelectItem Value="@IncidenciaEstado.Confirmada">
+                        Confirmada
+                    </MudSelectItem>
+
+                    <MudSelectItem Value="@IncidenciaEstado.EnProceso">
+                        En proceso
+                    </MudSelectItem>
+
+                    <MudSelectItem Value="@IncidenciaEstado.Resuelta">
+                        Resuelta
+                    </MudSelectItem>
+
+                </MudSelect>
+
+                <!-- BOTONES -->
+                <MudStack Row="true"
+                          Justify=Justify.FlexEnd
+                          Spacing="2"
+                          Class="mt-4">
+
+                    <MudButton Variant="Variant.Outlined"
+                               OnClick="Volver">
+                        Volver
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Disabled="@(EstadoEditado == Incidencia.Estado)"
+                               OnClick="Guardar">
+                        Guardar cambios
+                    </MudButton>
+
+                </MudStack>
+            }
+
+        </MudStack>
+
+    </MudPaper>
+
+</MudContainer>
+
+@code {
+
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    IncidenciaModel? Incidencia;
+    IncidenciaEstado EstadoEditado;
+    string AcomodadorNombre = "Sin asignar";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var incidencias = await Firestore.GetIncidenciasAsync();
+        Incidencia = incidencias.FirstOrDefault(i => i.Id == Id);
+
+        if (Incidencia != null)
+        {
+            EstadoEditado = Incidencia.Estado;
+
+            if (!string.IsNullOrWhiteSpace(Incidencia.AcomodadorUid))
+            {
+                var user = await Firestore.GetUserByUid(Incidencia.AcomodadorUid);
+                AcomodadorNombre = string.IsNullOrWhiteSpace(user?.Nombre)
+                    ? Incidencia.AcomodadorUid
+                    : user!.Nombre;
+            }
+        }
+    }
+
+async Task Guardar()
+{
+    if (Incidencia == null)
+        return;
+
+    if (EstadoEditado == IncidenciaEstado.Resuelta)
+    {
+        // ✅ Resolver de verdad
+        await Firestore.ResolverIncidenciaAsync(
+            Incidencia.Id,
+            Incidencia.ZonaId
+        );
+    }
+    else
+    {
+        // ✅ Cambio normal de estado
+        await Firestore.CambiarEstadoIncidenciaAsync(
+            Incidencia.Id,
+            EstadoEditado
+        );
+    }
+
+    Incidencia.Estado = EstadoEditado;
+
+    Snackbar.Add("Estado actualizado correctamente", Severity.Success);
+}
+
+    void Volver()
+    {
+        Nav.NavigateTo("/admin");
+    }
+
+    Color GetEstadoColor()
+    {
+        return Incidencia?.Estado switch
+        {
+            IncidenciaEstado.Pendiente   => Color.Error,
+            IncidenciaEstado.Confirmada => Color.Warning,
+            IncidenciaEstado.EnProceso  => Color.Info,
+            IncidenciaEstado.Resuelta   => Color.Success,
+            _                            => Color.Default
+        };
+    }
+
+    static string GetEstadoTexto(IncidenciaEstado estado) => estado switch
+    {
+        IncidenciaEstado.Pendiente => "Pendiente",
+        IncidenciaEstado.Confirmada => "Confirmada",
+        IncidenciaEstado.EnProceso => "En proceso",
+        IncidenciaEstado.Resuelta => "Resuelta",
+        _ => "Desconocido"
+    };
+
+    string FormatDateTime(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "-";
+
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed))
+        {
+            return parsed.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("es-ES"));
+        }
+
+        return raw;
+    }
+}

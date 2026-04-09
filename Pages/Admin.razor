@@ -1,0 +1,552 @@
+@page "/admin"
+
+@using EstadioApp.Authentication
+@using EstadioApp.Components
+@using EstadioApp.Models
+@using ClosedXML.Excel
+@using MudBlazor
+@inject FirestoreService Firestore
+@inject IJSRuntime JS
+
+@using Microsoft.JSInterop
+@using System.Globalization
+@inject IDialogService DialogService
+
+
+@inject NavigationManager Nav
+
+@implements IDisposable
+
+<RolesRedirect RoleRequired="admin">
+
+    <div class="admin-grid">
+
+        <!-- PANEL LATERAL: INCIDENCIAS -->
+        <MudPaper Class="incidencias-panel" Elevation="2">
+
+            <MudStack Row="true" AlignItems=AlignItems.Center Spacing="2">
+                <MudText Typo="Typo.h6">Incidencias</MudText>
+                <MudBadge Color="Color.Error"
+                          Content="@IncidenciasPendientesCount"
+                          Visible="@(IncidenciasPendientesCount > 0)" />
+            </MudStack>
+
+            <!-- FILTRO INCIDENCIAS -->
+            <MudSelect T="IncidenciaEstado?"
+                       Label="Filtrar"
+                       @bind-Value="FiltroEstado"
+                       Clearable="true">
+
+                <MudSelectItem T="IncidenciaEstado?" Value="@(null)">
+                    Todas
+                </MudSelectItem>
+
+                <MudSelectItem T="IncidenciaEstado?" Value="@IncidenciaEstado.Pendiente">
+                    Pendientes
+                </MudSelectItem>
+
+                <MudSelectItem T="IncidenciaEstado?" Value="@IncidenciaEstado.Confirmada">
+                    Confirmadas
+                </MudSelectItem>
+
+                <MudSelectItem T="IncidenciaEstado?" Value="@IncidenciaEstado.EnProceso">
+                    En proceso
+                </MudSelectItem>
+
+                <MudSelectItem T="IncidenciaEstado?" Value="@IncidenciaEstado.Resuelta">
+                    Resueltas
+                </MudSelectItem>
+
+            </MudSelect>
+
+            <div class="incidencias-scroll">
+
+                @if (Incidencias == null)
+                {
+                    <MudProgressCircular Indeterminate="true" />
+                }
+                else if (!IncidenciasFiltradas.Any())
+                {
+                    <MudText>No hay incidencias</MudText>
+                }
+                else
+                {
+                    @foreach (var inc in IncidenciasFiltradas
+                        .OrderByDescending(i =>
+                            DateTime.TryParse(i.Timestamp, out var fecha)
+                                ? fecha
+                                : DateTime.MinValue))
+                    {
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   Class="incidencia-btn mb-1"
+                                   Style="@($"border-left:5px solid {GetColorForEstado(inc.Estado)}")"
+                                   OnClick="@(() => AbrirIncidencia(inc))">
+
+                            @GetIconForTipo(inc.Tipo)
+
+                            <span style="margin-left:8px;">
+                                @inc.Tipo (@inc.ZonaId)
+                            </span>
+
+                        </MudButton>
+                    }
+                }
+
+            </div>
+
+        </MudPaper>
+
+        <!-- PANEL PRINCIPAL -->
+        <div class="admin-right">
+
+            <MudPaper Class="admin-summary pa-2" Elevation="1">
+                <div class="admin-summary-top">
+                    <MudText Typo="Typo.h6" Class="admin-title">Panel del Administrador</MudText>
+                    <MudChip T="string" Color="Color.Error" Variant="Variant.Outlined" Size="Size.Small">
+                        @OccupiedPercentLabel% ocupado
+                    </MudChip>
+                </div>
+
+                <div class="admin-hero">
+                    <MudStack Row="true" Spacing="1" Class="admin-metrics">
+
+                        <MudPaper Class="admin-metric-card admin-metric-total pa-2" Outlined="true">
+                            <MudText Typo="Typo.overline">Ocupación total</MudText>
+                            <MudText Typo="Typo.h4">@OccupiedSeats / @TotalSeatsTotales</MudText>
+                        </MudPaper>
+
+                        <MudPaper Class="admin-metric-card admin-metric-free pa-2" Outlined="true">
+                            <MudText Typo="Typo.overline">Libres</MudText>
+                            <MudText Typo="Typo.h4">@TotalFreeSeats</MudText>
+                        </MudPaper>
+
+                        <MudPaper Class="admin-metric-card admin-metric-avg pa-2" Outlined="true">
+                            <MudText Typo="Typo.overline">Ocupación media</MudText>
+                            <MudText Typo="Typo.h4">@AverageOccupancy%</MudText>
+                        </MudPaper>
+
+                    </MudStack>
+
+                    <div class="occupancy-visual-card">
+                        <div class="occupancy-pie" style="@GetOccupancyDonutStyle()"></div>
+                    </div>
+                </div>
+            </MudPaper>
+
+            <MudStack Row="true" Spacing="1" Class="admin-actions-row">
+                <MudButton Variant="Variant.Filled" Color="Color.Info" Size="Size.Small" OnClick="ExportarExcel">
+                    📄 Exportar Excel
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" Size="Size.Small" OnClick="ExportarPDF">
+                    📚 Exportar PDF
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           OnClick="@(() => Nav.NavigateTo("/admin/mensaje"))">
+                    📢 Enviar mensaje
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="@(MostrarMapaOcupacion ? Color.Success : Color.Default)"
+                           Size="Size.Small"
+                           OnClick="ToggleMapaOcupacion">
+                    @(MostrarMapaOcupacion ? "🟢 Mapa ocupación: ON" : "⚪ Mapa ocupación: OFF")
+                </MudButton>
+            </MudStack>
+
+            <!-- FILTRO BLOQUES -->
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="admin-filter-row">
+                <MudText Typo="Typo.body2" Class="admin-filter-text">Asientos juntos &ge;</MudText>
+                <MudSelect T="int"
+                           @bind-Value="FiltroMinBloque"
+                           Margin="Margin.Dense"
+                           Dense="true"
+                           Class="admin-filter-field"
+                           Variant="Variant.Outlined">
+                    @for (var i = 0; i <= 9; i++)
+                    {
+                        var optionValue = i;
+                        <MudSelectItem T="int" Value="@optionValue">@optionValue</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudStack>
+
+            <!-- PLANO -->
+            <MudPaper Class="admin-plan pa-2" Elevation="1">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Plano del estadio</MudText>
+
+                <OvalEditor @key="Zonas"
+                            ReadOnly="true"
+                            ShowToolbar="false"
+                            CanvasHeight="calc(100vh - 17rem)"
+                            ShowOccupancyHeatmap="MostrarMapaOcupacion"
+                            Zones="ZonasFiltradas.ToList()"
+                            IncidenciasActivas="Incidencias"
+                            Users="Usuarios" />
+            </MudPaper>
+
+            <!-- DETALLE DE ZONA -->
+            <MudPaper Class="pa-2 mt-1" Elevation="1">
+                <MudText Typo="Typo.subtitle2">Detalle de zona</MudText>
+
+                @if (ZonaSeleccionada == null)
+                {
+                    <MudText Color="Color.Secondary">
+                        Selecciona una zona en el plano
+                    </MudText>
+                }
+                else
+                {
+                    <MudText><b>Zona:</b> @ZonaSeleccionada.Id</MudText>
+
+                    <MudText>
+                        <b>Ocupación:</b>
+                        @GetOccupancyPercent(ZonaSeleccionada)%
+                        (@(ZonaSeleccionada.TotalSeats - ZonaSeleccionada.FreeSeats)
+                        / @ZonaSeleccionada.TotalSeats)
+                    </MudText>
+
+                    <MudText>
+                        <b>Máx asientos juntos:</b>
+                        @ZonaSeleccionada.MaxFreeBlock
+                    </MudText>
+
+                    <MudText>
+                        <b>Acomodador:</b>
+                        @ZonaSeleccionada.AccommodatorUid
+                    </MudText>
+
+                    @if (ZonaSeleccionada.HasCheckedIn)
+                    {
+                        <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Class="mt-1 mb-1">
+                            Acomodador en puesto
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Default" Variant="Variant.Outlined" Class="mt-1 mb-1">
+                            Sin reporte de asistencia
+                        </MudChip>
+                    }
+
+                    @if (Incidencias?.Any(i =>
+                        i.ZonaId == ZonaSeleccionada.Id &&
+                        i.Estado != IncidenciaEstado.Resuelta) == true)
+                    {
+                        <MudChip T="string"
+                                 Color="Color.Error"
+                                 Variant="Variant.Filled">
+                            Incidencia activa
+                        </MudChip>
+                    }
+                }
+            </MudPaper>
+
+        </div>
+
+    </div>
+
+</RolesRedirect>
+
+@code {
+
+    private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(5);
+    private CancellationTokenSource? _pollingCts;
+    private List<string> _idsIncidenciasPrevios = new();
+
+    // MÉTRICAS
+    int TotalFreeSeats;
+    int TotalSeatsTotales;
+    int OccupiedSeats;
+    int AverageOccupancyValue;
+    string AverageOccupancy => AverageOccupancyValue.ToString();
+    double OccupiedPercentValue;
+    string OccupiedPercentLabel = "0";
+
+    int IncidenciasPendientesCount =>
+    Incidencias?.Count(i => i.Estado == IncidenciaEstado.Pendiente) ?? 0;
+
+    List<UserModel> Usuarios = new();
+
+
+    // DATOS
+    List<IncidenciaModel>? Incidencias;
+    List<ZoneModel> Zonas = new();
+
+    IncidenciaEstado? FiltroEstado = null;
+    ZoneModel? ZonaSeleccionada;
+
+    IEnumerable<IncidenciaModel> IncidenciasFiltradas =>
+        Incidencias == null
+            ? Enumerable.Empty<IncidenciaModel>()
+            : (FiltroEstado == null
+                ? Incidencias
+                : Incidencias.Where(i => i.Estado == FiltroEstado));
+
+
+int FiltroMinBloque = 0;
+bool MostrarMapaOcupacion = false;
+
+IEnumerable<ZoneModel> ZonasFiltradas =>
+    FiltroMinBloque <= 0
+        ? Zonas
+        : Zonas.Where(z => z.MaxFreeBlock >= FiltroMinBloque);
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Usuarios = await Firestore.GetUsersAsync();
+        await RefrescarPanelAsync(reproducirAlerta: false);
+
+        _pollingCts = new CancellationTokenSource();
+        _ = IniciarPollingAsync(_pollingCts.Token);
+    }
+
+    async Task IniciarPollingAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(PollingInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefrescarPanelAsync(reproducirAlerta: true);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    async Task RefrescarPanelAsync(bool reproducirAlerta)
+    {
+        try
+        {
+            var zonasTask = Firestore.GetZonesAsync();
+            var incidenciasTask = Firestore.GetIncidenciasAsync();
+
+            await Task.WhenAll(zonasTask, incidenciasTask);
+
+            Zonas = await zonasTask;
+
+            var nuevasIncidencias = (await incidenciasTask)
+                .Where(i => !string.IsNullOrWhiteSpace(i.Id))
+                .ToList();
+
+            var idsNuevos = nuevasIncidencias
+                .Select(i => i.Id)
+                .ToList();
+
+            if (reproducirAlerta && idsNuevos.Except(_idsIncidenciasPrevios).Any())
+                await JS.InvokeVoidAsync("playAlertSound");
+
+            Incidencias = nuevasIncidencias;
+            _idsIncidenciasPrevios = idsNuevos;
+
+            RecalcularMetricas();
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error actualizando panel admin: " + ex.Message);
+        }
+    }
+
+    void RecalcularMetricas()
+    {
+        if (ZonaSeleccionada != null)
+            ZonaSeleccionada = Zonas.FirstOrDefault(z => z.Id == ZonaSeleccionada.Id);
+
+        TotalFreeSeats = Zonas.Sum(z => z.FreeSeats);
+        TotalSeatsTotales = Zonas.Sum(z => z.TotalSeats);
+        OccupiedSeats = Math.Max(0, TotalSeatsTotales - TotalFreeSeats);
+        AverageOccupancyValue = Zonas.Count == 0
+            ? 0
+            : (int)Math.Round(Zonas.Average(GetOccupancyPercent));
+
+        OccupiedPercentValue = TotalSeatsTotales <= 0
+            ? 0
+            : Math.Round((OccupiedSeats * 100.0) / TotalSeatsTotales, 1);
+
+        OccupiedPercentLabel = OccupiedPercentValue.ToString("0.#", CultureInfo.GetCultureInfo("es-ES"));
+    }
+
+    public void Dispose()
+    {
+        _pollingCts?.Cancel();
+        _pollingCts?.Dispose();
+    }
+
+    
+void AbrirDialogoMensaje()
+{
+    DialogService.Show(
+        typeof(EnviarMensajeDialog),
+        string.Empty,
+        new DialogParameters(),
+        new DialogOptions
+        {
+            CloseButton = true,
+            FullWidth = true,
+            MaxWidth = MaxWidth.Small
+        }
+    );
+}
+
+    
+double GetOccupancyPercent(ZoneModel z)
+{
+    if (z.TotalSeats <= 0)
+        return 0;
+
+    var ocupados = z.TotalSeats - z.FreeSeats;
+    return Math.Round((ocupados * 100.0) / z.TotalSeats);
+}
+
+    void AbrirIncidencia(IncidenciaModel inc) =>
+        Nav.NavigateTo($"/incidencia/{inc.Id}");
+
+    string GetColorForEstado(IncidenciaEstado e) => e switch
+    {
+        IncidenciaEstado.Pendiente => "#ff4444",
+        IncidenciaEstado.Confirmada => "#ffbb33",
+        IncidenciaEstado.EnProceso => "#33b5e5",
+        IncidenciaEstado.Resuelta => "#00C851",
+        _ => "#999999"
+    };
+
+    MarkupString GetIconForTipo(string tipo) => tipo.ToLower() switch
+    {
+        "altercado" => (MarkupString)"✊",
+        "niño perdido" => (MarkupString)"🧒",
+        "sanitaria" => (MarkupString)"➕",
+        "limpieza" => (MarkupString)"🧹",
+        _ => (MarkupString)"⚠️"
+    };
+
+    async Task ExportarExcel()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Incidencias");
+
+        sheet.Cell(1, 1).Value = "Tipo";
+        sheet.Cell(1, 2).Value = "Zona";
+        sheet.Cell(1, 3).Value = "Acomodador";
+        sheet.Cell(1, 4).Value = "Estado";
+        sheet.Cell(1, 5).Value = "Fecha";
+        sheet.Cell(1, 6).Value = "Resuelta";
+        sheet.Cell(1, 7).Value = "Tiempo de resolución";
+
+        var headerRange = sheet.Range(1, 1, 1, 7);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.LightSteelBlue;
+
+        var row = 2;
+        foreach (var inc in (Incidencias ?? new List<IncidenciaModel>())
+            .OrderByDescending(i => ParseDate(i.Timestamp) ?? DateTime.MinValue))
+        {
+            sheet.Cell(row, 1).Value = inc.Tipo;
+            sheet.Cell(row, 2).Value = inc.ZonaId;
+            sheet.Cell(row, 3).Value = GetNombreAcomodador(inc.AcomodadorUid);
+            sheet.Cell(row, 4).Value = GetEstadoTexto(inc.Estado);
+            sheet.Cell(row, 5).Value = FormatDateTime(inc.Timestamp);
+            sheet.Cell(row, 6).Value = FormatDateTime(inc.HoraResolucion);
+            sheet.Cell(row, 7).Value = GetResolutionTimeText(inc);
+            row++;
+        }
+
+        sheet.Columns(1, 7).AdjustToContents();
+        sheet.SheetView.FreezeRows(1);
+        sheet.RangeUsed()?.SetAutoFilter();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+
+        await JS.InvokeVoidAsync(
+            "downloadFile",
+            $"informe_incidencias_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            stream.ToArray());
+    }
+
+    async Task ExportarPDF() => await JS.InvokeVoidAsync("exportIncidenciasPDF", Incidencias, Usuarios);
+
+    string GetNombreAcomodador(string? uid)
+    {
+        if (string.IsNullOrWhiteSpace(uid))
+            return "Sin asignar";
+
+        var user = Usuarios.FirstOrDefault(u => u.Uid == uid);
+        if (user == null)
+            return uid;
+
+        return string.IsNullOrWhiteSpace(user.Nombre) ? user.Uid : user.Nombre;
+    }
+
+    string GetEstadoTexto(IncidenciaEstado estado) => estado switch
+    {
+        IncidenciaEstado.Pendiente => "Pendiente",
+        IncidenciaEstado.Confirmada => "Confirmada",
+        IncidenciaEstado.EnProceso => "En proceso",
+        IncidenciaEstado.Resuelta => "Resuelta",
+        _ => "Desconocido"
+    };
+
+    string FormatDateTime(string? raw)
+    {
+        var date = ParseDate(raw);
+        return date.HasValue
+            ? date.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("es-ES"))
+            : "-";
+    }
+
+    DateTime? ParseDate(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+            out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    string GetResolutionTimeText(IncidenciaModel inc)
+    {
+        if (inc.Estado != IncidenciaEstado.Resuelta)
+            return "-";
+
+        var inicio = ParseDate(inc.Timestamp);
+        var fin = ParseDate(inc.HoraResolucion);
+
+        if (!inicio.HasValue || !fin.HasValue || fin < inicio)
+            return "-";
+
+        var diff = fin.Value - inicio.Value;
+
+        if (diff.TotalDays >= 1)
+            return $"{(int)diff.TotalDays}d {diff.Hours:D2}:{diff.Minutes:D2}:{diff.Seconds:D2}";
+
+        return $"{(int)diff.TotalHours:D2}:{diff.Minutes:D2}:{diff.Seconds:D2}";
+    }
+
+    string GetOccupancyDonutStyle()
+    {
+        var occupied = OccupiedPercentValue.ToString("0.##", CultureInfo.InvariantCulture);
+        return $"--occupied:{occupied};";
+    }
+
+        void ToggleMapaOcupacion()
+        {
+            MostrarMapaOcupacion = !MostrarMapaOcupacion;
+        }
+}

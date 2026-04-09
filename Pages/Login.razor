@@ -1,0 +1,85 @@
+@page "/login"
+@inject FirebaseAuthService Auth
+@inject NavigationManager Nav
+@inject UserSessionService Session
+
+
+<MudPaper Class="pa-6 mx-auto mt-10" MaxWidth="400px">
+
+    <!-- ✅ TÍTULO -->
+    <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">
+        Asamblea Regional 2026
+    </MudText>
+
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-4">
+        Acceso al sistema
+    </MudText>
+
+    <MudTextField Label="Email" @bind-Value="email" Required="true" />
+    <MudTextField Label="Contraseña"
+                  @bind-Value="password"
+                  InputType="InputType.Password"
+                  Required="true" />
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Class="mt-4"
+               FullWidth="true"
+               OnClick="DoLogin">
+        Entrar
+    </MudButton>
+
+    @if (loginError)
+    {
+        <MudText Color="Color.Error" Class="mt-2">
+            Usuario o contraseña incorrectos.
+        </MudText>
+    }
+
+    @if (profileError)
+    {
+        <MudText Color="Color.Warning" Class="mt-2">
+            El usuario no tiene un rol válido en Firestore. Revisa el campo role.
+        </MudText>
+    }
+</MudPaper>
+
+
+@code {
+    string email = "";
+    string password = "";
+    bool loginError = false;
+    bool profileError = false;
+
+    async Task DoLogin()
+    {
+        loginError = false;
+        profileError = false;
+
+        var ok = await Auth.LoginAsync(email, password);
+
+        if (!ok)
+        {
+            loginError = true;
+            return;
+        }
+
+        var role = Session.CurrentUser?.Role?.Trim().ToLowerInvariant();
+
+        var target = role switch
+        {
+            "acomodador" => "/acomodador",
+            "orientador" => "/orientador",
+            "admin" => "/admin",
+            _ => null
+        };
+
+        if (target is null)
+        {
+            profileError = true;
+            return;
+        }
+
+        Nav.NavigateTo(target);
+    }
+}

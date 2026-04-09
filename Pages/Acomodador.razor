@@ -1,0 +1,280 @@
+@page "/acomodador"
+@using EstadioApp.Authentication
+@using EstadioApp.Models
+@using System.Globalization
+@inject UserSessionService Session
+@inject FirestoreService Firestore
+@inject ISnackbar Snackbar
+
+<RolesRedirect RoleRequired="acomodador">
+
+    <MudText Typo="Typo.h5">Panel del Acomodador</MudText>
+
+    <MudPaper Class="pa-4 mt-4" Elevation="1">
+
+        <!-- ZONA ASIGNADA -->
+        <MudText Class="mb-2">
+            Zona asignada: <b>@ZoneId</b>
+        </MudText>
+
+        <!-- BUTACAS -->
+        <MudNumericField Label="Butacas libres"
+                         @bind-Value="FreeSeats"
+                         @bind-Value:after="OnZoneDataChanged"
+                         Min="0" />
+
+        <!-- BLOQUES DE ASIENTOS -->
+        <MudTextField Label="Bloques de asientos libres juntos"
+                      HelperText="Ejemplo: 77554 (cada dígito = bloque contiguo)"
+                      @bind-Value="FreeSeatBlocks"
+                      @bind-Value:after="OnZoneDataChanged"
+                      Immediate="true"
+                      Pattern="^[0-9]*$"
+                      ErrorText="Solo números, sin espacios" />
+
+        @if (HasPendingChanges)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-3">
+                Tienes datos pendientes de actualizar.
+            </MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled"
+                   Color="@(HasPendingChanges ? Color.Warning : Color.Success)"
+                   Disabled="!HasPendingChanges || BloquesInvalidos"
+                   Class="mt-4"
+                   OnClick="GuardarAsync">
+            @(HasPendingChanges ? "Tienes cambios pendientes" : "Actualizado")
+        </MudButton>
+
+        <MudDivider Class="my-4" />
+
+        <!-- INCIDENCIA -->
+        @if (MiIncidencia != null)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-2">
+                Última incidencia: <b>@MiIncidencia.Tipo</b> —
+                Estado:
+                <b style="color:@GetColorForEstado(MiIncidencia.Estado)">
+                    @GetEstadoTexto(MiIncidencia.Estado)
+                </b>
+            </MudAlert>
+        }
+
+        <MudText Typo="Typo.h6">Enviar incidencia</MudText>
+
+        <MudStack Row="true" Spacing="2" Class="mt-2">
+            <MudButton Color="Color.Error" Variant="Variant.Filled"
+                       OnClick="@(() => EnviarIncidencia("altercado"))">
+                🔴 Altercado
+            </MudButton>
+
+            <MudButton Color="Color.Info" Variant="Variant.Filled"
+                       OnClick="@(() => EnviarIncidencia("limpieza"))">
+                🧹 Limpieza
+            </MudButton>
+
+            <MudButton Color="Color.Warning" Variant="Variant.Filled"
+                       OnClick="@(() => EnviarIncidencia("sanitaria"))">
+                🏥 Sanitaria
+            </MudButton>
+        </MudStack>
+
+        <MudDivider Class="my-4" />
+
+        <!-- MENSAJES -->
+        <MudText Typo="Typo.h6">Mensajes</MudText>
+
+        @if (Mensajes.Count == 0)
+        {
+            <MudText Color="Color.Secondary">
+                No hay mensajes nuevos.
+            </MudText>
+        }
+        else
+        {
+            <MudList T="string" Dense="true">
+                @foreach (var m in Mensajes)
+                {
+                    <MudListItem T="string">
+                        <MudText>@m.Texto</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @FormatDateTime(m.CreatedAt)
+                        </MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+    </MudPaper>
+
+</RolesRedirect>
+
+@code {
+
+    string ZoneId = "";
+    ZoneModel? CurrentZone;
+
+    int FreeSeats;
+    string FreeSeatBlocks = "";
+
+    bool HasPendingChanges = false;
+
+    IncidenciaModel? MiIncidencia;
+
+    List<MensajeModel> Mensajes = new();
+    bool MensajesInicializados = false;
+
+    bool BloquesInvalidos =>
+        !string.IsNullOrWhiteSpace(FreeSeatBlocks) &&
+        FreeSeatBlocks.Any(c => !char.IsDigit(c));
+
+    protected override async Task OnInitializedAsync()
+    {
+        ZoneId = Session.CurrentUser!.AssignedZone;
+
+        var zonas = await Firestore.GetZonesAsync();
+        CurrentZone = zonas.FirstOrDefault(z => z.Id == ZoneId);
+
+        FreeSeats = CurrentZone?.FreeSeats ?? 0;
+        FreeSeatBlocks = CurrentZone?.FreeSeatBlocks ?? "";
+
+        // POLLING INCIDENCIAS
+        _ = Task.Run(async () =>
+        {
+            IncidenciaEstado? ultimoEstado = null;
+
+            while (true)
+            {
+                try
+                {
+                    var incidencias = await Firestore.GetIncidenciasAsync();
+
+                    var mia = incidencias
+                        .Where(i => i.AcomodadorUid == Session.CurrentUser!.Uid)
+                        .OrderByDescending(i => i.Timestamp)
+                        .FirstOrDefault();
+
+                    if (mia != null && ultimoEstado != null && mia.Estado != ultimoEstado)
+                        Snackbar.Add($"El estado de tu incidencia cambió a: {GetEstadoTexto(mia.Estado)}");
+
+                    MiIncidencia = mia;
+                    if (mia != null) ultimoEstado = mia.Estado;
+
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch { }
+
+                await Task.Delay(TimeSpan.FromSeconds(30));
+            }
+        });
+
+        // POLLING MENSAJES
+        _ = Task.Run(async () =>
+        {
+            int ultimoConteo = 0;
+
+            while (true)
+            {
+                try
+                {
+                    var mensajes = await Firestore.GetMensajesAsync();
+
+                    if (!MensajesInicializados)
+                    {
+                        Mensajes = mensajes;
+                        ultimoConteo = mensajes.Count;
+                        MensajesInicializados = true;
+                    }
+                    else if (mensajes.Count > ultimoConteo)
+                    {
+                        Snackbar.Add("📩 Nuevo mensaje recibido");
+                        Mensajes = mensajes;
+                        ultimoConteo = mensajes.Count;
+                    }
+                    else
+                    {
+                        Mensajes = mensajes;
+                    }
+
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch { }
+
+                await Task.Delay(TimeSpan.FromSeconds(15));
+            }
+        });
+    }
+
+    void OnZoneDataChanged()
+    {
+        if (CurrentZone is null) return;
+        HasPendingChanges =
+            FreeSeats != CurrentZone.FreeSeats ||
+            FreeSeatBlocks != (CurrentZone.FreeSeatBlocks ?? "");
+    }
+
+    async Task GuardarAsync()
+    {
+        if (CurrentZone == null) return;
+
+        CurrentZone.FreeSeats = FreeSeats;
+        CurrentZone.FreeSeatBlocks = FreeSeatBlocks;
+        CurrentZone.HasCheckedIn = true;
+        CurrentZone.LastCheckInAtUtc = DateTime.UtcNow.ToString("o");
+
+        await Firestore.SaveZoneAsync(CurrentZone);
+        HasPendingChanges = false;
+    }
+
+    async Task EnviarIncidencia(string tipo)
+    {
+        try
+        {
+            await Firestore.EnviarIncidenciaAsync(
+                tipo,
+                Session.CurrentUser!.Uid,
+                ZoneId
+            );
+
+            Snackbar.Add("Incidencia creada correctamente", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Error al crear la incidencia.", Severity.Error);
+        }
+    }
+
+    string GetColorForEstado(IncidenciaEstado estado) => estado switch
+    {
+        IncidenciaEstado.Pendiente => "#ff4444",
+        IncidenciaEstado.Confirmada => "#ffbb33",
+        IncidenciaEstado.EnProceso => "#33b5e5",
+        IncidenciaEstado.Resuelta => "#00C851",
+        _ => "#999999"
+    };
+
+    string GetEstadoTexto(IncidenciaEstado estado) => estado switch
+    {
+        IncidenciaEstado.Pendiente => "Pendiente",
+        IncidenciaEstado.Confirmada => "Confirmada",
+        IncidenciaEstado.EnProceso => "En proceso",
+        IncidenciaEstado.Resuelta => "Resuelta",
+        _ => "Desconocido"
+    };
+
+    string FormatDateTime(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "-";
+
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed))
+        {
+            return parsed.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("es-ES"));
+        }
+
+        return raw;
+    }
+}

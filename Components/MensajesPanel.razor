@@ -1,0 +1,124 @@
+@using EstadioApp.Models
+@inject FirestoreService Firestore
+
+@using MudBlazor
+@using Microsoft.JSInterop
+
+@inject IJSRuntime JS
+@inject UserSessionService Session
+
+
+
+<MudPaper Class="pa-3">
+
+    <MudStack Row="true" Spacing="2" AlignItems=AlignItems.Center>
+        <MudText Typo="Typo.h6">Mensajes</MudText>
+
+        <MudBadge Color="Color.Info"
+                  Content="@(Mensajes?.Count ?? 0)"
+                  Visible="@(Mensajes?.Any() ?? false)" />
+    </MudStack>
+
+    <MudDivider Class="my-2" />
+
+    @if (Mensajes == null)
+    {
+        <MudProgressLinear Indeterminate />
+    }
+    else if (!Mensajes.Any())
+    {
+        <MudText>No hay mensajes</MudText>
+    }
+    else
+    {
+        <MudStack Spacing="1">
+            @foreach (var msg in Mensajes)
+            {
+                <div style="cursor:pointer;" @onclick="@(() => MarcarComoLeido(msg))">
+                    <MudPaper Class="pa-2" Elevation="1">
+
+                        <MudText>
+                            @msg.Texto
+                        </MudText>
+
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @msg.CreatedAt
+                        </MudText>
+
+                    </MudPaper>
+                </div>
+            }
+        </MudStack>
+    }
+
+</MudPaper>
+
+@code {
+
+
+    List<MensajeModel>? Mensajes;
+    string? UltimoMensajeId;
+    string MiUid => Session.CurrentUser?.Uid ?? "";
+
+
+async Task MarcarComoLeido(MensajeModel msg)
+{
+    if (!msg.LeidoPor.Contains(MiUid))
+    {
+        await Firestore.MarcarMensajeComoLeidoAsync(msg.Id, MiUid);
+        msg.LeidoPor.Add(MiUid);
+    }
+}
+
+protected override async Task OnInitializedAsync()
+{
+    _ = Task.Run(async () =>
+    {
+        while (true)
+        {
+            try
+            {
+                var nuevosMensajes = await Firestore.GetMensajesAsync();
+
+                if (nuevosMensajes.Any())
+                {
+                    // Mensajes NO LEÍDOS por este acomodador
+                    var noLeidos = nuevosMensajes
+                        .Where(m => !m.LeidoPor.Contains(MiUid))
+                        .ToList();
+
+                    if (Mensajes != null && noLeidos.Any())
+                    {
+                        var ultimoNoLeidoActual = noLeidos.First().Id;
+
+                        // 🔔 Sonar SOLO si hay un mensaje no leído nuevo
+                        if (UltimoMensajeId != null &&
+                            ultimoNoLeidoActual != UltimoMensajeId)
+                        {
+                            await JS.InvokeVoidAsync("playMessageSound");
+                        }
+
+                        UltimoMensajeId = ultimoNoLeidoActual;
+                    }
+                    else if (UltimoMensajeId == null && noLeidos.Any())
+                    {
+                        // Primera carga: no sonar
+                        UltimoMensajeId = noLeidos.First().Id;
+                    }
+                }
+
+                Mensajes = nuevosMensajes;
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error cargando mensajes: " + ex.Message);
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(15));
+        }
+    });
+}
+
+
+}

@@ -1,0 +1,554 @@
+@page "/admin/usuarios"
+
+@using System.Globalization
+@using System.Text
+@using ClosedXML.Excel
+@using EstadioApp.Authentication
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@inject FirebaseAuthService Auth
+@inject FirestoreService Firestore
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<RolesRedirect RoleRequired="admin">
+
+    <MudText Typo="Typo.h5" Class="mb-3">Gestion de usuarios</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6">Alta manual</MudText>
+
+                <MudTextField Label="Nombre"
+                              Class="mt-3"
+                              Immediate="true"
+                              @bind-Value="Nombre" />
+
+                <MudTextField Label="Email"
+                              Immediate="true"
+                              @bind-Value="Email" />
+
+                <MudTextField Label="Contrasena"
+                              Immediate="true"
+                              InputType="InputType.Password"
+                              HelperText="Minimo 6 caracteres"
+                              @bind-Value="Password" />
+
+                <MudSelect T="string"
+                           Label="Rol"
+                           @bind-Value="Role">
+                    <MudSelectItem Value="@("acomodador")">Acomodador</MudSelectItem>
+                    <MudSelectItem Value="@("orientador")">Orientador</MudSelectItem>
+                    <MudSelectItem Value="@("admin")">Administrador</MudSelectItem>
+                </MudSelect>
+
+                <MudTextField Label="Zona asignada (opcional)"
+                              Immediate="true"
+                              @bind-Value="AssignedZone" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@_creatingManual"
+                           Class="mt-4"
+                           OnClick="CrearManualAsync">
+                    Crear usuario
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6">Carga masiva CSV o Excel</MudText>
+
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2 mb-3">
+                    Columnas esperadas: email, password, role, nombre, assignedZone.
+                    role admite: admin, acomodador, orientador.
+                </MudAlert>
+
+                <MudStack Row="true" Spacing="1" Class="mb-3" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Download"
+                               OnClick="DescargarPlantillaCsvAsync">
+                        Descargar plantilla CSV
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.TableView"
+                               OnClick="DescargarPlantillaExcelAsync">
+                        Descargar plantilla Excel
+                    </MudButton>
+                </MudStack>
+
+                <InputFile OnChange="HandleImportFileAsync"
+                           accept=".csv,.xlsx"
+                           class="form-control" />
+
+                @if (_importing)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-3" Spacing="1">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <MudText Typo="Typo.body2">Importando usuarios...</MudText>
+                    </MudStack>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_importSummary))
+                {
+                    <MudAlert Severity="@_importSeverity" Class="mt-3">
+                        @_importSummary
+                    </MudAlert>
+                }
+
+                @if (_importErrors.Count > 0)
+                {
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Errores detectados</MudText>
+                    <MudList T="string" Dense="true">
+                        @foreach (var err in _importErrors.Take(10))
+                        {
+                            <MudListItem T="string">@err</MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 mt-4" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+            <MudText Typo="Typo.h6">Usuarios registrados</MudText>
+            <MudButton Variant="Variant.Text" OnClick="CargarUsuariosAsync" Disabled="@_loadingUsers">
+                Recargar
+            </MudButton>
+        </MudStack>
+
+        @if (_loadingUsers)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_users.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No hay usuarios para mostrar.</MudText>
+        }
+        else
+        {
+            <MudTable Items="_users" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>Nombre</MudTh>
+                    <MudTh>Email</MudTh>
+                    <MudTh>Rol</MudTh>
+                    <MudTh>Zona</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+                    <MudTd DataLabel="Email">@context.Email</MudTd>
+                    <MudTd DataLabel="Rol">@context.Role</MudTd>
+                    <MudTd DataLabel="Zona">@context.AssignedZone</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+
+</RolesRedirect>
+
+@code {
+    string Nombre = string.Empty;
+    string Email = string.Empty;
+    string Password = string.Empty;
+    string Role = "acomodador";
+    string AssignedZone = string.Empty;
+
+    bool _creatingManual;
+    bool _importing;
+    bool _loadingUsers;
+
+    string _importSummary = string.Empty;
+    Severity _importSeverity = Severity.Info;
+    readonly List<string> _importErrors = new();
+
+    List<UserModel> _users = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuariosAsync();
+    }
+
+    async Task CrearManualAsync()
+    {
+        _creatingManual = true;
+
+        try
+        {
+            var result = await Auth.CreateUserWithProfileAsync(
+                email: Email,
+                password: Password,
+                role: Role,
+                nombre: Nombre,
+                assignedZone: AssignedZone);
+
+            Snackbar.Add(result.Message, result.Ok ? Severity.Success : Severity.Error);
+
+            if (result.Ok)
+            {
+                Nombre = string.Empty;
+                Email = string.Empty;
+                Password = string.Empty;
+                AssignedZone = string.Empty;
+
+                await CargarUsuariosAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creando usuario: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _creatingManual = false;
+        }
+    }
+
+    async Task HandleImportFileAsync(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        if (file is null)
+            return;
+
+        _importing = true;
+        _importSummary = string.Empty;
+        _importErrors.Clear();
+        _importSeverity = Severity.Info;
+
+        try
+        {
+            List<ImportRow> rows = Path.GetExtension(file.Name).ToLowerInvariant() switch
+            {
+                ".csv" => await ParseCsvAsync(file),
+                ".xlsx" => await ParseExcelAsync(file),
+                _ => throw new InvalidOperationException("Formato no soportado. Usa CSV o XLSX.")
+            };
+
+            if (rows.Count == 0)
+            {
+                _importSummary = "El archivo no contiene filas validas para importar.";
+                _importSeverity = Severity.Warning;
+                return;
+            }
+
+            var created = 0;
+            var failed = 0;
+
+            foreach (var row in rows)
+            {
+                var role = row.Role.Trim().ToLowerInvariant();
+                var result = await Auth.CreateUserWithProfileAsync(
+                    email: row.Email,
+                    password: row.Password,
+                    role: role,
+                    nombre: row.Nombre,
+                    assignedZone: row.AssignedZone);
+
+                if (result.Ok)
+                {
+                    created++;
+                }
+                else
+                {
+                    failed++;
+                    _importErrors.Add($"{row.Email}: {result.Message}");
+                }
+            }
+
+            _importSeverity = failed == 0 ? Severity.Success : Severity.Warning;
+            _importSummary = $"Importacion completada. Creados: {created}. Fallidos: {failed}.";
+
+            await CargarUsuariosAsync();
+        }
+        catch (Exception ex)
+        {
+            _importSeverity = Severity.Error;
+            _importSummary = $"Error procesando archivo: {ex.Message}";
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    async Task CargarUsuariosAsync()
+    {
+        _loadingUsers = true;
+
+        try
+        {
+            _users = (await Firestore.GetUsersAsync())
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Nombre)
+                .ThenBy(u => u.Email)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo cargar la lista de usuarios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingUsers = false;
+        }
+    }
+
+    async Task DescargarPlantillaCsvAsync()
+    {
+        var csv = string.Join("\n", new[]
+        {
+            "email,password,role,nombre,assignedZone",
+            "usuario1@estadio.local,Temporal123,acomodador,Juan Perez,Zona A"
+        });
+
+        var bytes = Encoding.UTF8.GetBytes(csv);
+
+        await JS.InvokeVoidAsync(
+            "downloadFile",
+            "plantilla_usuarios.csv",
+            "text/csv;charset=utf-8",
+            bytes);
+    }
+
+    async Task DescargarPlantillaExcelAsync()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("usuarios");
+
+        sheet.Cell(1, 1).Value = "email";
+        sheet.Cell(1, 2).Value = "password";
+        sheet.Cell(1, 3).Value = "role";
+        sheet.Cell(1, 4).Value = "nombre";
+        sheet.Cell(1, 5).Value = "assignedZone";
+
+        sheet.Cell(2, 1).Value = "usuario1@estadio.local";
+        sheet.Cell(2, 2).Value = "Temporal123";
+        sheet.Cell(2, 3).Value = "acomodador";
+        sheet.Cell(2, 4).Value = "Juan Perez";
+        sheet.Cell(2, 5).Value = "Zona A";
+
+        var headerRange = sheet.Range(1, 1, 1, 5);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Font.FontColor = XLColor.White;
+        headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F4E79");
+        headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+        sheet.Cell(1, 1).GetComment().AddText("Correo unico del usuario (requerido).");
+        sheet.Cell(1, 2).GetComment().AddText("Contrasena temporal (minimo 6 caracteres).");
+        sheet.Cell(1, 3).GetComment().AddText("Valores permitidos: admin, acomodador, orientador.");
+        sheet.Cell(1, 4).GetComment().AddText("Nombre para mostrar del usuario.");
+        sheet.Cell(1, 5).GetComment().AddText("Zona asignada. Puede quedar vacia para admin.");
+
+        var sampleRowRange = sheet.Range(2, 1, 2, 5);
+        sampleRowRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8F1FB");
+        sampleRowRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        sampleRowRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#9BB7D4");
+
+        sheet.SheetView.FreezeRows(1);
+        headerRange.SetAutoFilter();
+
+        var roleRange = sheet.Range(2, 3, 500, 3);
+        var roleValidation = roleRange.CreateDataValidation();
+        roleValidation.IgnoreBlanks = true;
+        roleValidation.InCellDropdown = true;
+        roleValidation.AllowedValues = XLAllowedValues.List;
+        roleValidation.List("admin,acomodador,orientador", true);
+
+        sheet.Column(2).Style.NumberFormat.Format = "@";
+
+        sheet.Columns(1, 5).AdjustToContents();
+
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+        var bytes = ms.ToArray();
+
+        await JS.InvokeVoidAsync(
+            "downloadFile",
+            "plantilla_usuarios.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            bytes);
+    }
+
+    async Task<List<ImportRow>> ParseCsvAsync(IBrowserFile file)
+    {
+        await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        var text = await reader.ReadToEndAsync();
+
+        var lines = text
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (lines.Count == 0)
+            return new List<ImportRow>();
+
+        var separator = lines[0].Count(c => c == ';') > lines[0].Count(c => c == ',') ? ';' : ',';
+        var firstRowCells = ParseSeparatedLine(lines[0], separator);
+
+        var hasHeader = firstRowCells.Any(c =>
+            c.Equals("email", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("password", StringComparison.OrdinalIgnoreCase));
+
+        List<string> headers;
+        var startIndex = 0;
+
+        if (hasHeader)
+        {
+            headers = firstRowCells;
+            startIndex = 1;
+        }
+        else
+        {
+            headers = new List<string> { "email", "password", "role", "nombre", "assignedZone" };
+        }
+
+        var result = new List<ImportRow>();
+
+        for (var i = startIndex; i < lines.Count; i++)
+        {
+            var cells = ParseSeparatedLine(lines[i], separator);
+            var row = CreateImportRow(headers, cells);
+
+            if (string.IsNullOrWhiteSpace(row.Email) && string.IsNullOrWhiteSpace(row.Password))
+                continue;
+
+            result.Add(row);
+        }
+
+        return result;
+    }
+
+    async Task<List<ImportRow>> ParseExcelAsync(IBrowserFile file)
+    {
+        await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var workbook = new XLWorkbook(ms);
+        var sheet = workbook.Worksheets.FirstOrDefault();
+
+        if (sheet is null)
+            return new List<ImportRow>();
+
+        var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        var lastCol = Math.Max(sheet.LastColumnUsed()?.ColumnNumber() ?? 0, 5);
+
+        if (lastRow == 0)
+            return new List<ImportRow>();
+
+        var headers = new List<string>();
+        for (var c = 1; c <= lastCol; c++)
+            headers.Add(sheet.Cell(1, c).GetString().Trim());
+
+        var hasHeader = headers.Any(h =>
+            h.Equals("email", StringComparison.OrdinalIgnoreCase) ||
+            h.Equals("password", StringComparison.OrdinalIgnoreCase));
+
+        var result = new List<ImportRow>();
+        var startRow = hasHeader ? 2 : 1;
+
+        if (!hasHeader)
+            headers = new List<string> { "email", "password", "role", "nombre", "assignedZone" };
+
+        for (var r = startRow; r <= lastRow; r++)
+        {
+            var cells = new List<string>();
+            for (var c = 1; c <= lastCol; c++)
+                cells.Add(sheet.Cell(r, c).GetString().Trim());
+
+            var row = CreateImportRow(headers, cells);
+
+            if (string.IsNullOrWhiteSpace(row.Email) && string.IsNullOrWhiteSpace(row.Password))
+                continue;
+
+            result.Add(row);
+        }
+
+        return result;
+    }
+
+    static List<string> ParseSeparatedLine(string line, char separator)
+    {
+        var values = new List<string>();
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    current.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+
+                continue;
+            }
+
+            if (ch == separator && !inQuotes)
+            {
+                values.Add(current.ToString().Trim());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(ch);
+        }
+
+        values.Add(current.ToString().Trim());
+        return values;
+    }
+
+    static ImportRow CreateImportRow(List<string> headers, List<string> cells)
+    {
+        string GetValue(params string[] keys)
+        {
+            for (var i = 0; i < headers.Count; i++)
+            {
+                var key = headers[i].Trim().ToLowerInvariant();
+                if (!keys.Contains(key))
+                    continue;
+
+                if (i < cells.Count)
+                    return cells[i].Trim();
+            }
+
+            return string.Empty;
+        }
+
+        return new ImportRow
+        {
+            Email = GetValue("email", "correo"),
+            Password = GetValue("password", "contrasena", "clave"),
+            Role = GetValue("role", "rol"),
+            Nombre = GetValue("nombre", "name"),
+            AssignedZone = GetValue("assignedzone", "zona", "zonaasignada", "assigned_zone")
+        };
+    }
+
+    class ImportRow
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string AssignedZone { get; set; } = string.Empty;
+    }
+}

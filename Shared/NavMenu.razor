@@ -1,0 +1,67 @@
+@inject UserSessionService Session
+@implements IDisposable
+
+<MudPaper Class="pa-0">
+
+    <MudNavMenu Dense="true" Class="pa-3">
+
+        @if (Session.CurrentUser is null)
+        {
+            <MudNavLink Href="/login" Icon="@Icons.Material.Filled.Login">
+                Login
+            </MudNavLink>
+        }
+        else
+        {
+            var role = Session.CurrentUser.Role?.Trim().ToLowerInvariant();
+
+            @switch (role)
+            {
+                case "acomodador":
+                    <MudNavLink Href="/acomodador" Icon="@Icons.Material.Filled.EventSeat">
+                        Acomodador
+                    </MudNavLink>
+                    break;
+
+                case "orientador":
+                    <MudNavLink Href="/orientador" Icon="@Icons.Material.Filled.Map">
+                        Orientador
+                    </MudNavLink>
+                    break;
+
+                case "admin":
+                    <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings">
+                        Panel admin
+                    </MudNavLink>
+
+                    <MudNavLink Href="/admin/usuarios" Icon="@Icons.Material.Filled.PeopleAlt">
+                        Gestion de usuarios
+                    </MudNavLink>
+
+                    <MudNavLink Href="/editor" Icon="@Icons.Material.Filled.Edit">
+                        Editor del Estadio
+                    </MudNavLink>
+                    break;
+            }
+        }
+
+    </MudNavMenu>
+
+</MudPaper>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.OnChange += HandleSessionChange;
+    }
+
+    void HandleSessionChange()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Session.OnChange -= HandleSessionChange;
+    }
+}

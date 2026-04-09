@@ -1,0 +1,215 @@
+/*
+========================================
+ ADMIN – GRID GENERAL
+========================================
+*/
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 0.75rem;
+    height: calc(100vh - 1.5rem);
+    padding: 0.4rem;
+    box-sizing: border-box;
+}
+
+.admin-right {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+
+/* 
+========================================
+ PANEL LATERAL – INCIDENCIAS
+========================================
+*/
+
+.incidencias-panel {
+    padding: 0.75rem;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+}
+
+.incidencias-scroll {
+    overflow-y: auto;
+    margin-top: 0.6rem;
+    padding-right: 6px;
+}
+
+.incidencias-scroll::-webkit-scrollbar {
+    width: 7px;
+}
+
+.incidencias-scroll::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 6px;
+}
+
+.incidencia-btn {
+    width: 100%;
+    justify-content: flex-start !important;
+    text-align: left;
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.9rem;
+    transition: 0.15s ease-in-out;
+}
+
+.incidencia-btn:hover {
+    transform: translateX(4px);
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+
+/* 
+========================================
+ MÉTRICAS
+========================================
+*/
+
+.admin-summary {
+    border-radius: 10px;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+    background:
+        radial-gradient(circle at 12% 20%, rgba(46, 125, 50, 0.08), transparent 35%),
+        radial-gradient(circle at 90% 85%, rgba(211, 47, 47, 0.08), transparent 40%),
+        #ffffff;
+}
+
+.admin-title {
+    margin-bottom: 0.2rem;
+    line-height: 1.15;
+}
+
+.admin-summary-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.35rem;
+}
+
+.admin-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.admin-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 0;
+    row-gap: 0.4rem;
+}
+
+.admin-metric-card {
+    min-width: 165px;
+    border-radius: 10px;
+    border-left: 4px solid transparent;
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.admin-metric-total {
+    border-left-color: #d32f2f;
+}
+
+.admin-metric-free {
+    border-left-color: #2e7d32;
+}
+
+.admin-metric-avg {
+    border-left-color: #1565c0;
+}
+
+.occupancy-visual-card {
+    min-width: 122px;
+    padding: 0.35rem;
+    border-radius: 12px;
+    border: 1px solid #e8eef5;
+    background: rgba(248, 251, 255, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.occupancy-pie {
+    --occupied: 0;
+    width: 96px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: conic-gradient(
+        from -90deg,
+        #d32f2f 0 calc(var(--occupied) * 1%),
+        hsl(120, 78%, 46%) calc(var(--occupied) * 1%) 100%
+    );
+    box-shadow: 0 4px 12px rgba(18, 24, 40, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.admin-actions-row {
+    margin-top: 0;
+}
+
+.admin-filter-field {
+    width: 72px;
+    min-width: 72px;
+    margin-top: 0;
+}
+
+.admin-filter-row {
+    margin-top: -0.1rem;
+    width: fit-content;
+}
+
+.admin-filter-text {
+    white-space: nowrap;
+    margin-right: 0.15rem;
+}
+
+
+/* 
+========================================
+ PLANO DEL ESTADIO
+========================================
+*/
+
+.admin-plan {
+    flex: 1;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+
+/* 
+========================================
+ RESPONSIVE
+========================================
+*/
+
+@media (max-width: 950px) {
+    .admin-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .admin-hero {
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+    }
+
+    .occupancy-visual-card {
+        justify-content: center;
+    }
+
+    .incidencias-panel {
+        height: 300px;
+        margin-bottom: 1rem;
+    }
+}

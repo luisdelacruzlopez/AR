@@ -1,0 +1,261 @@
+@page "/editor"
+
+@using EstadioApp.Authentication
+@using EstadioApp.Components
+@using EstadioApp.Models
+@inject FirestoreService Firestore
+@inject ISnackbar Snackbar
+
+<RolesRedirect RoleRequired="admin">
+
+    <MudText Typo="Typo.h5">Editor del estadio</MudText>
+
+    <MudAlert Severity="Severity.Info" Class="mt-2 mb-4">
+        Este editor permite mover zonas, redimensionar, rotar y guardarlo todo en Firestore.
+    </MudAlert>
+
+    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-4">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="_loading || _saving"
+                   OnClick="GuardarTodasAsync">
+            Guardar zonas
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Success"
+                   Disabled="_loading || _saving"
+                   OnClick="CrearZonaNueva">
+            Nueva zona
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   Disabled="SelectedZone is null || _loading || _saving"
+                   OnClick="EliminarZonaSeleccionadaAsync">
+            Eliminar zona
+        </MudButton>
+
+        <MudButton Variant="Variant.Text"
+                   Disabled="_loading || _saving"
+                   OnClick="CargarZonasAsync">
+            Recargar
+        </MudButton>
+    </MudStack>
+
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-2" Elevation="1">
+                @if (_loading)
+                {
+                    <MudProgressCircular Indeterminate="true" />
+                }
+                else if (Zones.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Warning">
+                        No hay zonas cargadas. Crea una nueva o revisa la colección de Firestore.
+                    </MudAlert>
+                }
+
+                <OvalEditor CanvasHeight="calc(100vh - 18rem)"
+                            Zones="Zones"
+                            OnZoneSelected="OnZoneSelected"
+                            ShowToolbar="false" />
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6">Propiedades de la zona</MudText>
+
+                @if (SelectedZone is null)
+                {
+                    <MudText Color="Color.Secondary" Class="mt-2">
+                        Selecciona una zona del plano para editarla.
+                    </MudText>
+                }
+                else
+                {
+                    <MudTextField Label="Id"
+                                  Class="mt-3"
+                                  Immediate="true"
+                                  @bind-Value="SelectedZone.Id" />
+
+                    <MudTextField Label="Nombre"
+                                  Immediate="true"
+                                  @bind-Value="SelectedZone.Name" />
+
+                    <MudNumericField T="int" Label="Butacas totales"
+                                       Min="0"
+                                       @bind-Value="SelectedZone.TotalSeats" />
+
+                    <MudNumericField T="int" Label="Butacas libres"
+                                       Min="0"
+                                       @bind-Value="SelectedZone.FreeSeats" />
+
+                    <MudTextField Label="Bloques libres juntos"
+                                  HelperText="Ejemplo: 77554"
+                                  Immediate="true"
+                                  @bind-Value="SelectedZone.FreeSeatBlocks" />
+
+                    <MudTextField Label="Uid del acomodador"
+                                  Immediate="true"
+                                  @bind-Value="SelectedZone.AccommodatorUid" />
+
+                    <MudDivider Class="my-4" />
+
+                    <MudText Typo="Typo.subtitle2">Geometría</MudText>
+
+                    <MudNumericField T="double" Label="Centro X"
+                                       Immediate="true"
+                                       @bind-Value="SelectedZone.Cx" />
+
+                    <MudNumericField T="double" Label="Centro Y"
+                                       Immediate="true"
+                                       @bind-Value="SelectedZone.Cy" />
+
+                    <MudNumericField T="double" Label="Radio X"
+                                       Min="1"
+                                       Immediate="true"
+                                       @bind-Value="SelectedZone.Rx" />
+
+                    <MudNumericField T="double" Label="Radio Y"
+                                       Min="1"
+                                       Immediate="true"
+                                       @bind-Value="SelectedZone.Ry" />
+
+                    <MudNumericField T="double" Label="Rotación"
+                                       Immediate="true"
+                                       @bind-Value="SelectedZone.Rotation" />
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+</RolesRedirect>
+
+@code {
+    List<ZoneModel> Zones = new();
+    ZoneModel? SelectedZone;
+
+    bool _loading = true;
+    bool _saving;
+    int _newZoneCounter = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarZonasAsync();
+    }
+
+    async Task CargarZonasAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            Zones = await Firestore.GetZonesAsync();
+            SelectedZone = SelectedZone is null
+                ? Zones.FirstOrDefault()
+                : Zones.FirstOrDefault(z => z.Id == SelectedZone.Id) ?? Zones.FirstOrDefault();
+
+            _newZoneCounter = Math.Max(_newZoneCounter, Zones.Count + 1);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error cargando zonas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    Task OnZoneSelected(ZoneModel? zone)
+    {
+        SelectedZone = zone;
+        return Task.CompletedTask;
+    }
+
+    void CrearZonaNueva()
+    {
+        var zone = new ZoneModel
+        {
+            Id = $"Z{_newZoneCounter++}",
+            Name = "Nueva zona",
+            Cx = 250,
+            Cy = 180,
+            Rx = 45,
+            Ry = 70,
+            TotalSeats = 100,
+            FreeSeats = 100,
+            Rotation = 0,
+            FreeSeatBlocks = ""
+        };
+
+        Zones.Add(zone);
+        SelectedZone = zone;
+    }
+
+    async Task GuardarTodasAsync()
+    {
+        if (Zones.Count == 0)
+        {
+            Snackbar.Add("No hay zonas para guardar.", Severity.Warning);
+            return;
+        }
+
+        if (Zones.Any(z => string.IsNullOrWhiteSpace(z.Id)))
+        {
+            Snackbar.Add("Todas las zonas deben tener un identificador.", Severity.Error);
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            foreach (var zone in Zones)
+            {
+                zone.FreeSeats = Math.Clamp(zone.FreeSeats, 0, Math.Max(zone.TotalSeats, 0));
+                await Firestore.SaveZoneAsync(zone);
+            }
+
+            Snackbar.Add("Zonas guardadas correctamente.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error guardando zonas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    async Task EliminarZonaSeleccionadaAsync()
+    {
+        if (SelectedZone is null)
+            return;
+
+        _saving = true;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(SelectedZone.Id))
+                await Firestore.DeleteZoneAsync(SelectedZone.Id);
+
+            Zones.Remove(SelectedZone);
+            SelectedZone = Zones.FirstOrDefault();
+
+            Snackbar.Add("Zona eliminada.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error eliminando zona: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,0 +1,139 @@
+@using EstadioApp.Models
+@using MudBlazor
+@using System.Globalization
+@inject FirestoreService Firestore
+
+<MudDialog Style="min-height: 320px;">
+    <DialogContent>
+        @if (Incidencia == null)
+        {
+            <MudText>Cargando incidencia…</MudText>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6" Class="mb-3">
+                Detalle de incidencia
+            </MudText>
+
+            <MudText><b>Tipo:</b> @Incidencia.Tipo</MudText>
+            <MudText><b>Zona:</b> @Incidencia.ZonaId</MudText>
+            <MudText><b>Fecha:</b> @FormatDateTime(Incidencia.Timestamp)</MudText>
+            <MudText><b>Acomodador:</b> @AcomodadorNombre</MudText>
+
+            @if (!string.IsNullOrWhiteSpace(Incidencia.HoraResolucion))
+            {
+                <MudText>
+                    <b>Resuelta:</b> @FormatDateTime(Incidencia.HoraResolucion)
+                </MudText>
+            }
+
+            <MudDivider Class="my-3" />
+
+            <MudSelect T="IncidenciaEstado"
+                       Label="Estado"
+                       @bind-Value="EstadoTemp">
+
+                <MudSelectItem Value="@IncidenciaEstado.Pendiente">Pendiente</MudSelectItem>
+                <MudSelectItem Value="@IncidenciaEstado.Confirmada">Confirmada</MudSelectItem>
+                <MudSelectItem Value="@IncidenciaEstado.EnProceso">En proceso</MudSelectItem>
+                <MudSelectItem Value="@IncidenciaEstado.Resuelta">Resuelta</MudSelectItem>
+
+            </MudSelect>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        @if (Incidencia != null)
+        {
+            <MudButton Variant="Variant.Outlined" OnClick="Cerrar">
+                Cancelar
+            </MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="Guardar">
+                Guardar
+            </MudButton>
+        }
+    </DialogActions>
+
+</MudDialog>
+
+@code {
+
+    [CascadingParameter]
+    public MudDialogInstance? Dialog { get; set; }
+
+    [Parameter]
+    public IncidenciaModel? Incidencia { get; set; }
+
+    IncidenciaEstado EstadoTemp;
+    string AcomodadorNombre = "Sin asignar";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Incidencia != null)
+        {
+            EstadoTemp = Incidencia.Estado;
+
+            if (!string.IsNullOrWhiteSpace(Incidencia.AcomodadorUid))
+            {
+                var user = await Firestore.GetUserByUid(Incidencia.AcomodadorUid);
+                AcomodadorNombre = string.IsNullOrWhiteSpace(user?.Nombre)
+                    ? Incidencia.AcomodadorUid
+                    : user!.Nombre;
+            }
+            else
+            {
+                AcomodadorNombre = "Sin asignar";
+            }
+        }
+    }
+
+    void Cerrar()
+    {
+        Dialog?.Cancel();
+    }
+
+    async Task Guardar()
+    {
+        if (Incidencia == null)
+            return;
+
+        if (EstadoTemp == IncidenciaEstado.Resuelta)
+        {
+            // ✅ SOLO aquí se resuelve de verdad
+            await Firestore.ResolverIncidenciaAsync(
+                Incidencia.Id,
+                Incidencia.ZonaId
+            );
+        }
+        else
+        {
+            // ✅ Cambio normal de estado
+            await Firestore.CambiarEstadoIncidenciaAsync(
+                Incidencia.Id,
+                EstadoTemp
+            );
+        }
+
+        // ✅ Mantener UI coherente
+        Incidencia.Estado = EstadoTemp;
+
+        Dialog?.Close(DialogResult.Ok(EstadoTemp));
+    }
+
+    string FormatDateTime(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "-";
+
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed))
+        {
+            return parsed.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("es-ES"));
+        }
+
+        return raw;
+    }
+}

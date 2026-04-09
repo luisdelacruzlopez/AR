@@ -1,0 +1,43 @@
+.app-shell {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top left, rgba(18, 136, 122, 0.12), transparent 32%),
+        linear-gradient(180deg, #f6fbfa 0%, #eef4f8 100%);
+}
+
+.app-bar {
+    backdrop-filter: blur(10px);
+}
+
+.drawer-toggle {
+    margin-right: 0.5rem;
+}
+
+.app-drawer {
+    width: 280px;
+}
+
+.app-main-content {
+    min-height: 100vh;
+    padding: 1.5rem;
+}
+
+.guest-main-content {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+@media (min-width: 1200px) {
+    .app-main-content {
+        padding: 2rem;
+    }
+}
+
+@media (max-width: 959.98px) {
+    .app-main-content {
+        padding: 1rem;
+    }
+}
