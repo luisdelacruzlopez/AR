@@ -6,5 +6,9 @@
         "root": "."
       }
     ]
+  },
+  "hosting": {
+    "source": "apphosting_dist/wwwroot"
   }
 }
+
