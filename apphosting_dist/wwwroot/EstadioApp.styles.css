@@ -1,0 +1,395 @@
+/* /Components/OvalEditor.razor.rz.scp.css */
+/* =========================================================
+   EDITOR GENERAL
+   ========================================================= */
+
+.editor-container[b-brx92d20e9] {
+    position: relative;
+    user-select: none;
+    touch-action: none;
+}
+
+/* =========================================================
+   TOOLTIP DE ZONA
+   ========================================================= */
+
+.zone-tooltip[b-brx92d20e9] {
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    z-index: 20;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.zone-tooltip-title[b-brx92d20e9] {
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+/* =========================================================
+   ZONA BASE
+   ========================================================= */
+
+.zone-base[b-brx92d20e9] {
+    fill: #ffffff;
+    stroke: #555;
+    stroke-width: 2px;
+    transition: stroke 0.2s ease-in-out;
+}
+
+.zone-base.selected[b-brx92d20e9] {
+    stroke: #1976d2;
+    stroke-width: 3px;
+}
+
+
+.zona-bloque-grande[b-brx92d20e9] {
+    fill: #e8f5e9;
+}
+
+.zona-checkin-dot[b-brx92d20e9] {
+    fill: #2e7d32;
+    stroke: #ffffff;
+    stroke-width: 2px;
+    pointer-events: none;
+    filter: drop-shadow(0 0 3px rgba(46, 125, 50, 0.55));
+}
+
+
+/* =========================================================
+   ILUMINACIÓN POR INCIDENCIA
+   ========================================================= */
+
+.zona-incidencia[b-brx92d20e9] {
+    animation: parpadeo-borde-b-brx92d20e9 1.2s infinite ease-in-out;
+    stroke-width: 6px !important;
+}
+
+@keyframes parpadeo-borde-b-brx92d20e9 {
+    0% {
+        opacity: 1;
+        filter: drop-shadow(0 0 2px rgba(255,0,0,0.5));
+    }
+    50% {
+        opacity: 0.5;
+        filter: drop-shadow(0 0 8px rgba(255,0,0,0.9));
+    }
+    100% {
+        opacity: 1;
+        filter: drop-shadow(0 0 2px rgba(255,0,0,0.5));
+    }
+}
+
+/* =========================================================
+   HANDLES DE EDICIÓN
+   ========================================================= */
+
+.handle[b-brx92d20e9] {
+    fill: white;
+    stroke: #444;
+    stroke-width: 2;
+    cursor: nwse-resize;
+}
+
+.rotate-handle[b-brx92d20e9] {
+    fill: #ff9800;
+    cursor: grab;
+}
+
+.rotate-line[b-brx92d20e9] {
+    stroke: #444;
+    stroke-width: 2;
+}
+
+/* =========================================================
+   TEXTO SVG (CORREGIDO)
+   ========================================================= */
+
+text[b-brx92d20e9] {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: bold;
+    fill: #111111;              /* ✅ visible sobre fondo blanco */
+    pointer-events: none;
+    dominant-baseline: middle;
+    text-anchor: middle;
+    text-rendering: geometricPrecision;
+}
+
+.zone-label-text[b-brx92d20e9] {
+    fill: #111111;
+    pointer-events: none;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+    .editor-container svg[b-brx92d20e9] {
+        height: 70vh;
+    }
+}
+/* /Pages/Admin.razor.rz.scp.css */
+/*
+========================================
+ ADMIN – GRID GENERAL
+========================================
+*/
+
+.admin-grid[b-szzmnty08a] {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 0.75rem;
+    height: calc(100vh - 1.5rem);
+    padding: 0.4rem;
+    box-sizing: border-box;
+}
+
+.admin-right[b-szzmnty08a] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+
+/* 
+========================================
+ PANEL LATERAL – INCIDENCIAS
+========================================
+*/
+
+.incidencias-panel[b-szzmnty08a] {
+    padding: 0.75rem;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+}
+
+.incidencias-scroll[b-szzmnty08a] {
+    overflow-y: auto;
+    margin-top: 0.6rem;
+    padding-right: 6px;
+}
+
+.incidencias-scroll[b-szzmnty08a]::-webkit-scrollbar {
+    width: 7px;
+}
+
+.incidencias-scroll[b-szzmnty08a]::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 6px;
+}
+
+.incidencia-btn[b-szzmnty08a] {
+    width: 100%;
+    justify-content: flex-start !important;
+    text-align: left;
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.9rem;
+    transition: 0.15s ease-in-out;
+}
+
+.incidencia-btn:hover[b-szzmnty08a] {
+    transform: translateX(4px);
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+
+/* 
+========================================
+ MÉTRICAS
+========================================
+*/
+
+.admin-summary[b-szzmnty08a] {
+    border-radius: 10px;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+    background:
+        radial-gradient(circle at 12% 20%, rgba(46, 125, 50, 0.08), transparent 35%),
+        radial-gradient(circle at 90% 85%, rgba(211, 47, 47, 0.08), transparent 40%),
+        #ffffff;
+}
+
+.admin-title[b-szzmnty08a] {
+    margin-bottom: 0.2rem;
+    line-height: 1.15;
+}
+
+.admin-summary-top[b-szzmnty08a] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.35rem;
+}
+
+.admin-hero[b-szzmnty08a] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.admin-metrics[b-szzmnty08a] {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 0;
+    row-gap: 0.4rem;
+}
+
+.admin-metric-card[b-szzmnty08a] {
+    min-width: 165px;
+    border-radius: 10px;
+    border-left: 4px solid transparent;
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.admin-metric-total[b-szzmnty08a] {
+    border-left-color: #d32f2f;
+}
+
+.admin-metric-free[b-szzmnty08a] {
+    border-left-color: #2e7d32;
+}
+
+.admin-metric-avg[b-szzmnty08a] {
+    border-left-color: #1565c0;
+}
+
+.occupancy-visual-card[b-szzmnty08a] {
+    min-width: 122px;
+    padding: 0.35rem;
+    border-radius: 12px;
+    border: 1px solid #e8eef5;
+    background: rgba(248, 251, 255, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.occupancy-pie[b-szzmnty08a] {
+    --occupied: 0;
+    width: 96px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: conic-gradient(
+        from -90deg,
+        #d32f2f 0 calc(var(--occupied) * 1%),
+        hsl(120, 78%, 46%) calc(var(--occupied) * 1%) 100%
+    );
+    box-shadow: 0 4px 12px rgba(18, 24, 40, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.admin-actions-row[b-szzmnty08a] {
+    margin-top: 0;
+}
+
+.admin-filter-field[b-szzmnty08a] {
+    width: 72px;
+    min-width: 72px;
+    margin-top: 0;
+}
+
+.admin-filter-row[b-szzmnty08a] {
+    margin-top: -0.1rem;
+    width: fit-content;
+}
+
+.admin-filter-text[b-szzmnty08a] {
+    white-space: nowrap;
+    margin-right: 0.15rem;
+}
+
+
+/* 
+========================================
+ PLANO DEL ESTADIO
+========================================
+*/
+
+.admin-plan[b-szzmnty08a] {
+    flex: 1;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+
+/* 
+========================================
+ RESPONSIVE
+========================================
+*/
+
+@media (max-width: 950px) {
+    .admin-grid[b-szzmnty08a] {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .admin-hero[b-szzmnty08a] {
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+    }
+
+    .occupancy-visual-card[b-szzmnty08a] {
+        justify-content: center;
+    }
+
+    .incidencias-panel[b-szzmnty08a] {
+        height: 300px;
+        margin-bottom: 1rem;
+    }
+}
+/* /Shared/MainLayout.razor.rz.scp.css */
+.app-shell[b-u0pvx8psc7] {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top left, rgba(18, 136, 122, 0.12), transparent 32%),
+        linear-gradient(180deg, #f6fbfa 0%, #eef4f8 100%);
+}
+
+.app-bar[b-u0pvx8psc7] {
+    backdrop-filter: blur(10px);
+}
+
+.drawer-toggle[b-u0pvx8psc7] {
+    margin-right: 0.5rem;
+}
+
+.app-drawer[b-u0pvx8psc7] {
+    width: 280px;
+}
+
+.app-main-content[b-u0pvx8psc7] {
+    min-height: 100vh;
+    padding: 1.5rem;
+}
+
+.guest-main-content[b-u0pvx8psc7] {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+@media (min-width: 1200px) {
+    .app-main-content[b-u0pvx8psc7] {
+        padding: 2rem;
+    }
+}
+
+@media (max-width: 959.98px) {
+    .app-main-content[b-u0pvx8psc7] {
+        padding: 1rem;
+    }
+}

@@ -1,0 +1,25 @@
+# Build results
+bin/
+obj/
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+
+# Node
+node_modules/
+package-lock.json
+
+# IDEs
+.vs/
+.vscode/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Allow apphosting_dist (compiled Blazor app)
+!apphosting_dist/
+!apphosting_dist/**

@@ -1,0 +1,14 @@
+{
+  "apphosting": {
+    "backends": [
+      {
+        "codebase": "default",
+        "root": "."
+      }
+    ]
+  },
+  "hosting": {
+    "source": "apphosting_dist/wwwroot"
+  }
+}
+

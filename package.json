@@ -8,7 +8,7 @@
   },
   "scripts": {
     "prepare:dist": "dotnet publish EstadioApp.csproj -c Release -o apphosting_dist",
-    "build": "npm run prepare:dist && node scripts/verify-dist.js",
+    "build": "node scripts/verify-dist.js",
     "start": "node server.js"
   },
   "dependencies": {
